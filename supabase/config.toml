@@ -1,0 +1,50 @@
+# Supabase project settings, used by the Supabase CLI and the GitHub integration.
+# Database changes live in supabase/migrations/ as SQL files only.
+
+project_id = "limitless-os"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+# Seed data is for local development and preview branches only.
+# Reference rows that production needs (states, offices, roles) are in a migration.
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+# No public sign-up. An Admin adds people.
+enable_signup = false
+enable_anonymous_sign_ins = false
+minimum_password_length = 10
+
+[auth.email]
+# Email and password sign-in stays on. Sign-up through the app is off.
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = false
+secure_password_change = true
+
+[auth.sms]
+enable_signup = false

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { mainNav, newEmergency, newJob } from '../lib/navigation'
+import { mainNav, newEmergency, newJob, peopleScreen } from '../lib/navigation'
+import { canManagePeople, displayName } from '../lib/people'
+import { useBackend, useSignedInPerson } from '../lib/SessionContext'
 import { CloseIcon, MenuIcon, PlusIcon } from './Icons'
 
 // The green sidebar on wide screens. On a phone it folds into a top bar with
@@ -82,11 +84,45 @@ export function AppShell() {
             </NavLink>
           ))}
         </div>
+        <SignedInFooter />
       </nav>
 
       <main className="main" id="content">
         <Outlet />
       </main>
+    </div>
+  )
+}
+
+// Who is signed in, at the foot of the sidebar, with sign-out. Admins also
+// get the People screen here, so the eight main links stay as designed.
+function SignedInFooter() {
+  const backend = useBackend()
+  const me = useSignedInPerson()
+  const [signingOut, setSigningOut] = useState(false)
+
+  return (
+    <div className="sidebar__account">
+      <div className="sidebar__who">
+        <div className="sidebar__name">{displayName(me)}</div>
+        <div className="sidebar__role">{me.role.name}</div>
+      </div>
+      {canManagePeople(me) && (
+        <NavLink to={peopleScreen.path} className="nav-link">
+          {peopleScreen.label}
+        </NavLink>
+      )}
+      <button
+        type="button"
+        className="sidebar__sign-out"
+        disabled={signingOut}
+        onClick={() => {
+          setSigningOut(true)
+          backend.signOut().catch(() => setSigningOut(false))
+        }}
+      >
+        {signingOut ? 'Signing out…' : 'Sign out'}
+      </button>
     </div>
   )
 }

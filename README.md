@@ -6,14 +6,40 @@ The full plan is in [`docs/spec.md`](docs/spec.md). The approved screen designs 
 
 ## What works today
 
-This is the first step of Phase 1:
+Phase 1, steps 1 and 2:
 
 - The app frame: the green sidebar with New emergency, New job or lead, and the eight menu links. On a phone it becomes a top bar with a menu button, and New emergency stays in the top bar.
-- The Office home screen, with made-up sample data: what needs attention, today's schedule and the boards. The location buttons switch between all locations, Pennsylvania and Utah.
+- Sign-in with email and password. Nobody can sign up on their own: an Admin adds people. Anyone signed out sees only the sign-in screen.
+- The sidebar shows who is signed in, their role, and a Sign out button.
+- The People screen, for Admins only: everyone who can sign in, with their role, offices and whether they are switched on.
+- The Office home screen, with made-up sample data: what needs attention, today's schedule and the boards. The location buttons come from the states and offices in the database.
 - Every other menu link opens a page saying which step it arrives in.
 - The app can be installed to a phone or iPad home screen, and it opens without signal once it has been loaded once.
 
-There is no login and no database yet. Nothing you do is saved, apart from the location you last picked on that device.
+Customers, jobs and the rest arrive in the next steps. The home screen numbers are still sample data.
+
+## The database
+
+The database is a Supabase project. Its tables, access rules and starting rows are SQL files in `supabase/migrations/`. Supabase's GitHub integration applies them when a pull request is merged. Nobody changes the database by hand in the dashboard.
+
+### Connecting the app to Supabase
+
+The app needs two settings, both found in the Supabase project under **Project Settings**, then **API**:
+
+- `VITE_SUPABASE_URL`: the project URL.
+- `VITE_SUPABASE_KEY`: the public key, called `anon` or `publishable`. Never the `service_role` or secret key.
+
+They go in Cloudflare under the project's **Settings**, then **Variables and secrets** (as build variables), and in a local `.env.local` file on your computer (copy `.env.example`). They never go in this repository. If they are missing, the app shows a "Setup needed" message instead of a blank page.
+
+### Adding people
+
+1. In Supabase, open **Authentication**, then **Users**, then **Add user**, then **Create new user**. Enter their email and a starting password, and tick **Auto confirm user**.
+2. They get a profile in Limitless OS straight away. The very first person ever added becomes Admin. Everyone after starts as Sales with no office.
+3. In the app, an Admin opens **People** (under their name in the sidebar), taps the person, and sets their name, role and offices.
+
+To stop someone signing in, switch them off on the People screen. People are never deleted, so their history stays.
+
+Also check, in Supabase under **Authentication**, then **Sign In / Providers**, that **Allow new users to sign up** is off.
 
 ## Running it on a computer
 
@@ -31,6 +57,7 @@ Other commands:
 | Command | What it does |
 | --- | --- |
 | `npm test` | Runs the automated checks of the business rules and screens |
+| `npm run test:db` | Checks the database migrations and access rules against a local Postgres (needs Postgres installed) |
 | `npm run typecheck` | Checks the code for mistakes |
 | `npm run build` | Builds the finished app into the `dist` folder |
 | `npm run preview` | Serves the finished build locally, to try the installable version |
@@ -52,9 +79,9 @@ The file `wrangler.jsonc` tells Cloudflare to serve the `dist` folder and to sen
 
 If you use a Cloudflare **Pages** project instead, set the build command to `npm run build` and the output folder to `dist`. Pages also sends unknown addresses to the app automatically.
 
-### Settings for later
+### Settings
 
-When the database arrives in the next step, the app will need two settings: `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY`. They go in Cloudflare under the project's **Settings**, then **Variables and secrets**, and in a local `.env.local` file on your computer (see `.env.example`). They never go in this repository.
+Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` as described in [Connecting the app to Supabase](#connecting-the-app-to-supabase). The app reads them when it is built, so deploy again after changing them.
 
 ## Installing on a phone or iPad
 

@@ -5,7 +5,9 @@
 // the approved mockup in docs/design/office-home.html.
 
 import type { AttentionPart, Measure } from '../lib/attention'
-import type { StateCode } from '../lib/locations'
+
+/** The sample data covers the two states the business has today. */
+export type SampleState = 'PA' | 'UT'
 
 export interface AttentionItemData {
   id: string
@@ -13,7 +15,7 @@ export interface AttentionItemData {
   /** Second line. Receives the combined measure so it can mention the oldest wait. */
   detail: (measure: Measure) => string
   to: string
-  parts: Partial<Record<StateCode, AttentionPart>>
+  parts: Partial<Record<SampleState, AttentionPart>>
 }
 
 export interface TodayEntryData {
@@ -22,7 +24,7 @@ export interface TodayEntryData {
   time: string | null
   title: string
   address: string
-  state: StateCode
+  state: SampleState
   to: string
 }
 
@@ -31,13 +33,13 @@ export type BoardKey = 'retail' | 'insurance' | 'emergency_tarps' | 'servpro_rec
 export interface BoardCountData {
   key: BoardKey
   name: string
-  jobs: Record<StateCode, number>
+  jobs: Record<SampleState, number>
 }
 
 export interface ViewCountData {
   key: 'in_production' | 'billing'
   name: string
-  jobs: Record<StateCode, number>
+  jobs: Record<SampleState, number>
 }
 
 export const attentionItems: AttentionItemData[] = [

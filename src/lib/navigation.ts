@@ -31,6 +31,9 @@ export const mainNav: readonly ScreenLink[] = [
   { label: 'Reports', path: '/reports', arrives: 'a later phase, once jobs and money are in' },
 ]
 
+/** For Admins only, shown under their name in the sidebar. */
+export const peopleScreen: ScreenLink = { label: 'People', path: '/people' }
+
 export const searchScreen: ScreenLink = {
   label: 'Search',
   path: '/search',
