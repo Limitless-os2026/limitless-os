@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { mainNav, myDetailsScreen, newEmergency, newJob, peopleScreen } from '../lib/navigation'
 import { canManagePeople, displayName } from '../lib/people'
 import { useBackend, useSignedInPerson } from '../lib/SessionContext'
+import { AppVersion } from './AppVersion'
 import { CloseIcon, MenuIcon, PlusIcon } from './Icons'
 
 // The green sidebar on wide screens. On a phone it folds into a top bar with
@@ -127,6 +128,7 @@ function SignedInFooter() {
       >
         {signingOut ? 'Signing out…' : 'Sign out'}
       </button>
+      <AppVersion className="sidebar__version" />
     </div>
   )
 }

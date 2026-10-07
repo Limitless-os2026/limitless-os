@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { AppVersion } from '../components/AppVersion'
 import { friendlyMessage } from '../lib/backend'
 import { useBackend } from '../lib/SessionContext'
 
@@ -65,6 +66,7 @@ export function SignIn() {
         </form>
         <p className="gate__note">No account yet? Ask an Admin to add you.</p>
       </main>
+      <AppVersion className="gate__version" />
     </div>
   )
 }
