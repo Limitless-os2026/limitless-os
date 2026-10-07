@@ -1,7 +1,30 @@
-// An in-memory stand-in for the server, for screen tests. Made-up people only.
+// An in-memory stand-in for the server, for screen tests. Made-up people,
+// customers and partners only. It does not copy the database's visibility
+// rules: everyone sees everything here. Those rules are checked against a
+// real Postgres in supabase/tests/.
 
 import { FriendlyError, type Backend, type SessionUser } from '../lib/backend'
+import {
+  customerName,
+  phoneKey,
+  type Customer,
+  type CustomerChange,
+  type NewCustomer,
+  type NewProperty,
+  type PhoneMatch,
+  type Property,
+} from '../lib/customers'
 import type { Locations } from '../lib/locations'
+import {
+  contactName,
+  type Contact,
+  type ContactChange,
+  type NewContact,
+  type NewOrganization,
+  type Organization,
+  type OrganizationChange,
+  type SearchResult,
+} from '../lib/partners'
 import type { MyDetails, NewPerson, Person, PersonChange, Role } from '../lib/people'
 
 export const roles: Role[] = [
@@ -12,8 +35,8 @@ export const roles: Role[] = [
 ]
 
 const permissions: Record<string, string[]> = {
-  'role-admin': ['manage_users', 'manage_permissions', 'manage_settings', 'view_audit_log'],
-  'role-pm': ['view_margins', 'manage_teams'],
+  'role-admin': ['manage_users', 'manage_permissions', 'manage_settings', 'view_audit_log', 'manage_partner_structure'],
+  'role-pm': ['view_margins', 'manage_teams', 'manage_partner_structure'],
   'role-sales': [],
   'role-accountant': ['view_margins'],
 }
@@ -51,8 +74,8 @@ export function samplePeople(): Person[] {
       email: 'new.rep@example.com',
       phone: null,
       roleId: 'role-sales',
-      primaryOfficeId: null,
-      officeIds: [],
+      primaryOfficeId: 'office-reading',
+      officeIds: ['office-reading'],
       isActive: true,
     },
     {
@@ -69,14 +92,142 @@ export function samplePeople(): Person[] {
   ]
 }
 
+export function sampleCustomers(): Customer[] {
+  return [
+    {
+      id: 'customer-dana',
+      customerType: 'person',
+      firstName: 'Dana',
+      lastName: 'Whitfield',
+      companyName: null,
+      phone: '(610) 555-0101',
+      phoneAlt: null,
+      email: 'dana.whitfield@example.com',
+      preferredContact: 'text',
+      officeId: 'office-reading',
+      notes: null,
+      createdAt: '2026-10-01T14:00:00Z',
+    },
+    {
+      id: 'customer-samuel',
+      customerType: 'person',
+      firstName: 'Samuel',
+      lastName: 'Okafor',
+      companyName: null,
+      phone: '610-555-0102',
+      phoneAlt: null,
+      email: null,
+      preferredContact: null,
+      officeId: 'office-reading',
+      notes: 'Gate code 4411',
+      createdAt: '2026-10-02T14:00:00Z',
+    },
+    {
+      id: 'customer-oakridge',
+      customerType: 'company',
+      firstName: 'Grace',
+      lastName: 'Tran',
+      companyName: 'Oakridge Property Group LLC',
+      phone: '610-555-0103',
+      phoneAlt: null,
+      email: 'grace@example.com',
+      preferredContact: 'email',
+      officeId: 'office-reading',
+      notes: null,
+      createdAt: '2026-10-03T14:00:00Z',
+    },
+    {
+      id: 'customer-luis',
+      customerType: 'person',
+      firstName: 'Luis',
+      lastName: 'Herrera',
+      companyName: null,
+      phone: '801-555-0104',
+      phoneAlt: null,
+      email: 'luis.herrera@example.com',
+      preferredContact: 'call',
+      officeId: 'office-af',
+      notes: null,
+      createdAt: '2026-10-04T14:00:00Z',
+    },
+  ]
+}
+
+export function sampleProperties(): Property[] {
+  return [
+    { id: 'property-1', customerId: 'customer-dana', addressLine1: '412 Birchwood Lane', addressLine2: null, city: 'Reading', state: 'PA', zip: '19601', propertyType: 'residential', notes: null },
+    { id: 'property-2', customerId: 'customer-samuel', addressLine1: '88 Quarry Road', addressLine2: null, city: 'Shillington', state: 'PA', zip: '19607', propertyType: 'residential', notes: null },
+    { id: 'property-3', customerId: 'customer-oakridge', addressLine1: '1500 Commerce Drive', addressLine2: null, city: 'Wyomissing', state: 'PA', zip: '19610', propertyType: 'commercial', notes: null },
+    { id: 'property-4', customerId: 'customer-oakridge', addressLine1: '1510 Commerce Drive', addressLine2: null, city: 'Wyomissing', state: 'PA', zip: '19610', propertyType: 'commercial', notes: null },
+    { id: 'property-5', customerId: 'customer-luis', addressLine1: '27 Alpine Loop', addressLine2: null, city: 'American Fork', state: 'UT', zip: '84003', propertyType: 'residential', notes: null },
+  ]
+}
+
+function organization(id: string, name: string, orgType: Organization['orgType'], extra: Partial<Organization> = {}): Organization {
+  return {
+    id,
+    name,
+    orgType,
+    parentOrganizationId: null,
+    isReferralPartner: true,
+    phone: null,
+    email: null,
+    addressLine1: null,
+    city: null,
+    state: null,
+    zip: null,
+    notes: null,
+    ...extra,
+  }
+}
+
+export function sampleOrganizations(): Organization[] {
+  return [
+    organization('org-keystone', 'Keystone Restoration Holdings', 'servpro_group', { phone: '610-555-0150', city: 'Reading', state: 'PA' }),
+    organization('org-wasatch', 'Wasatch Mitigation Partners', 'servpro_group', { phone: '801-555-0160', city: 'Lehi', state: 'UT' }),
+    organization('org-birch', 'SERVPRO of Birch Hollow', 'servpro_franchise', { parentOrganizationId: 'org-keystone', phone: '610-555-0151', city: 'Reading', state: 'PA' }),
+    organization('org-pine', 'SERVPRO of Pine Ridge', 'servpro_franchise', { parentOrganizationId: 'org-keystone', phone: '610-555-0152', city: 'Shillington', state: 'PA' }),
+    organization('org-timpview', 'SERVPRO of Timpview', 'servpro_franchise', { parentOrganizationId: 'org-wasatch', phone: '801-555-0161', city: 'American Fork', state: 'UT' }),
+    organization('org-carrier', 'Blue Mountain Mutual Insurance', 'insurance_carrier', { isReferralPartner: false, phone: '800-555-0170', city: 'Harrisburg', state: 'PA' }),
+    organization('org-maple', 'Maple Court Property Management', 'property_manager', { phone: '610-555-0180', city: 'Wyomissing', state: 'PA' }),
+  ]
+}
+
+function contact(id: string, firstName: string, lastName: string, organizationId: string | null, extra: Partial<Contact> = {}): Contact {
+  return { id, organizationId, firstName, lastName, title: null, contactRole: null, phone: null, mobile: null, email: null, notes: null, ...extra }
+}
+
+export function sampleContacts(): Contact[] {
+  return [
+    contact('contact-priya', 'Priya', 'Nandakumar', 'org-birch', { title: 'Mitigation manager', contactRole: 'mitigation_manager', phone: '610-555-0151', mobile: '610-555-0191', email: 'priya@example.com' }),
+    contact('contact-marcus', 'Marcus', 'Bell', 'org-birch', { title: 'Dispatcher', contactRole: 'dispatcher', phone: '610-555-0151', email: 'marcus@example.com' }),
+    contact('contact-elena', 'Elena', 'Vasquez', 'org-pine', { title: 'General manager', contactRole: 'general_manager', phone: '610-555-0152', mobile: '610-555-0192' }),
+    contact('contact-owen', 'Owen', 'Hatch', 'org-timpview', { title: 'Owner', contactRole: 'owner', mobile: '801-555-0193' }),
+    contact('contact-theo', 'Theo', 'Lindqvist', 'org-carrier', { title: 'Field adjuster', contactRole: 'adjuster', mobile: '717-555-0194', email: 'theo@example.com' }),
+    contact('contact-rosa', 'Rosa', 'Delgado', null, { title: 'Independent agent', contactRole: 'agent', mobile: '610-555-0195', email: 'rosa@example.com' }),
+  ]
+}
+
 export const PASSWORD = 'correct horse'
 
 export interface FakeBackend extends Backend {
   people: Person[]
   locations: Locations
+  customers: Customer[]
+  properties: Property[]
+  organizations: Organization[]
+  contacts: Contact[]
   updates: PersonChange[]
   added: NewPerson[]
   myDetails: MyDetails[]
+  addedCustomers: NewCustomer[]
+  customerChanges: CustomerChange[]
+  addedProperties: { customerId: string; property: NewProperty }[]
+  addedOrganizations: NewOrganization[]
+  organizationChanges: OrganizationChange[]
+  addedContacts: NewContact[]
+  contactChanges: ContactChange[]
+  searches: string[]
   /** Each person's password. Everyone starts on PASSWORD. */
   passwords: Map<string, string>
   /** People still on a temporary password. */
@@ -85,8 +236,13 @@ export interface FakeBackend extends Backend {
 
 let nextTemporary = 1
 
+function matches(text: string | null | undefined, query: string): boolean {
+  return Boolean(text && text.toLowerCase().includes(query.toLowerCase()))
+}
+
 export function fakeBackend(options: { signedInAs?: string | null; locations?: Locations } = {}): FakeBackend {
   let user: SessionUser | null = null
+  let nextId = 1
   const listeners = new Set<(user: SessionUser | null) => void>()
   const people = samplePeople()
 
@@ -103,9 +259,21 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
   const backend: FakeBackend = {
     people,
     locations: options.locations ?? sampleLocations(),
+    customers: sampleCustomers(),
+    properties: sampleProperties(),
+    organizations: sampleOrganizations(),
+    contacts: sampleContacts(),
     updates: [],
     added: [],
     myDetails: [],
+    addedCustomers: [],
+    customerChanges: [],
+    addedProperties: [],
+    addedOrganizations: [],
+    organizationChanges: [],
+    addedContacts: [],
+    contactChanges: [],
+    searches: [],
     passwords: new Map(people.map((person) => [person.id, PASSWORD])),
     temporary: new Set(),
 
@@ -139,6 +307,8 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
         mustChangePassword: backend.temporary.has(person.id),
         role,
         permissions: person.isActive && !backend.temporary.has(person.id) ? (permissions[role.id] ?? []) : [],
+        officeIds: [...person.officeIds],
+        primaryOfficeId: person.primaryOfficeId,
       }
     },
     async loadLocations() {
@@ -201,6 +371,144 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
         lastName: details.lastName.trim() || null,
         phone: details.phone.trim() || null,
       })
+    },
+
+    // ----- Customers and properties -----
+
+    async loadCustomers() {
+      return backend.customers.map((customer) => ({ ...customer }))
+    },
+    async loadCustomer(customerId) {
+      const customer = backend.customers.find((candidate) => candidate.id === customerId)
+      return customer ? { ...customer } : null
+    },
+    async loadProperties(customerId) {
+      return backend.properties.filter((property) => !customerId || property.customerId === customerId).map((property) => ({ ...property }))
+    },
+    async findCustomersByPhone(phone) {
+      const key = phoneKey(phone)
+      if (key.length < 7) return []
+      return backend.customers
+        .filter((customer) => phoneKey(customer.phone) === key)
+        .map(
+          (customer): PhoneMatch => ({
+            customerId: customer.id,
+            displayName: customerName(customer),
+            officeName: backend.locations.offices.find((office) => office.id === customer.officeId)?.name ?? '',
+            canOpen: true,
+          }),
+        )
+    },
+    async addCustomer(customer) {
+      backend.addedCustomers.push(customer)
+      const id = `customer-new-${nextId++}`
+      backend.customers.push({
+        id,
+        customerType: customer.customerType,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        companyName: customer.companyName,
+        phone: customer.phone,
+        phoneAlt: null,
+        email: customer.email,
+        preferredContact: null,
+        officeId: customer.officeId,
+        notes: null,
+        createdAt: new Date().toISOString(),
+      })
+      if (customer.property) {
+        backend.properties.push({ id: `property-new-${nextId++}`, customerId: id, notes: null, ...customer.property })
+      }
+      return { customerId: id }
+    },
+    async updateCustomer(change) {
+      backend.customerChanges.push(change)
+      const customer = backend.customers.find((candidate) => candidate.id === change.customerId)
+      if (!customer) throw new FriendlyError('You do not have permission to change this customer.')
+      const { customerId: _ignored, ...fields } = change
+      Object.assign(customer, fields)
+    },
+    async addProperty(customerId, property) {
+      backend.addedProperties.push({ customerId, property })
+      const id = `property-new-${nextId++}`
+      backend.properties.push({ id, customerId, notes: null, ...property })
+      return { propertyId: id }
+    },
+
+    // ----- Organizations and contacts -----
+
+    async loadOrganizations() {
+      return backend.organizations.map((organization) => ({ ...organization }))
+    },
+    async loadContacts() {
+      return backend.contacts.map((contact) => ({ ...contact }))
+    },
+    async addOrganization(organization) {
+      backend.addedOrganizations.push(organization)
+      const id = `org-new-${nextId++}`
+      backend.organizations.push({ id, ...organization })
+      return { organizationId: id }
+    },
+    async updateOrganization(change) {
+      backend.organizationChanges.push(change)
+      const organization = backend.organizations.find((candidate) => candidate.id === change.organizationId)
+      if (!organization) throw new FriendlyError('That organization was not found.')
+      const { organizationId: _ignored, ...fields } = change
+      Object.assign(organization, fields)
+    },
+    async addContact(contact) {
+      backend.addedContacts.push(contact)
+      const id = `contact-new-${nextId++}`
+      backend.contacts.push({ id, ...contact })
+      return { contactId: id }
+    },
+    async updateContact(change) {
+      backend.contactChanges.push(change)
+      const found = backend.contacts.find((candidate) => candidate.id === change.contactId)
+      if (!found) throw new FriendlyError('That contact was not found.')
+      const { contactId: _ignored, ...fields } = change
+      Object.assign(found, fields)
+    },
+
+    // ----- Search -----
+
+    async search(query) {
+      backend.searches.push(query)
+      const q = query.trim()
+      if (!q) return []
+      const digits = phoneKey(q)
+      const results: SearchResult[] = []
+      for (const customer of backend.customers) {
+        const properties = backend.properties.filter((property) => property.customerId === customer.id)
+        const hit =
+          matches(customerName(customer), q) ||
+          matches(customer.email, q) ||
+          (digits.length >= 3 && phoneKey(customer.phone).includes(digits)) ||
+          properties.some((property) => matches(`${property.addressLine1} ${property.city ?? ''}`, q))
+        if (hit) {
+          const first = properties[0]
+          results.push({
+            kind: 'customer',
+            id: customer.id,
+            title: customerName(customer),
+            detail: [customer.phone, first && `${first.addressLine1}, ${first.city ?? ''}`].filter(Boolean).join(' · '),
+          })
+        }
+      }
+      for (const organization of backend.organizations) {
+        if (matches(organization.name, q)) results.push({ kind: 'organization', id: organization.id, title: organization.name, detail: organization.orgType })
+      }
+      for (const found of backend.contacts) {
+        if (matches(contactName(found), q)) {
+          results.push({
+            kind: 'contact',
+            id: found.id,
+            title: contactName(found),
+            detail: backend.organizations.find((organization) => organization.id === found.organizationId)?.name ?? null,
+          })
+        }
+      }
+      return results
     },
   }
   return backend

@@ -6,19 +6,22 @@ The full plan is in [`docs/spec.md`](docs/spec.md). The approved screen designs 
 
 ## What works today
 
-Phase 1, steps 1 and 2, and the cleanup after step 2:
+Phase 1, steps 1 to 3:
 
 - The app frame: the green sidebar with New emergency, New job or lead, and the eight menu links. On a phone it becomes a top bar with a menu button, and New emergency stays in the top bar.
 - Sign-in with email and password. Nobody can sign up on their own: an Admin adds people. Anyone signed out sees only the sign-in screen.
 - The sidebar shows who is signed in, their role, and a Sign out button.
-- The People screen, for Admins only: everyone who can sign in, with their role, offices and whether they are switched on. Admins add people and reset passwords here.
+- The People screen, for Admins only: everyone who can sign in, with their role, offices and whether they are switched on. Admins add people and reset passwords here. Everyone who can sign in belongs to at least one office. A password reset, or switching someone off, signs them out on every device.
 - My details, for everyone: their own name, phone and password.
+- Customers: a list, a customer page with Call and Text buttons and the customer's properties, a New customer form that needs only a name and a phone number, and a warning when the phone number already belongs to someone. Sales see the customers they created, Project managers the customers in their offices, and Admins and Accountants all of them, until jobs arrive and widen this.
+- Partners: SERVPRO ownership groups, their franchises and the contacts at each, in that order, plus other partners such as carriers and property managers. Anyone can add or edit them; only Project managers and Admins change an organization's kind or parent.
+- Search, from the box at the top of every screen: customers by name, phone, email or property address, and organizations and contacts by name.
 - An "Update ready" bar on every screen when a newer version of the app has been published, with a Refresh button.
 - The Office home screen, with made-up sample data: what needs attention, today's schedule and the boards. The location buttons come from the states and offices in the database.
 - Every other menu link opens a page saying which step it arrives in.
 - The app can be installed to a phone or iPad home screen, and it opens without signal once it has been loaded once.
 
-Customers, jobs and the rest arrive in the next steps. The home screen numbers are still sample data.
+Jobs, boards, tasks and the rest arrive in the next steps. The home screen numbers are still sample data.
 
 ## The database
 
@@ -41,7 +44,7 @@ This uses a small server function, `supabase/functions/manage-people`. Supabase'
 
 The very first person, before there is any Admin, is still added in Supabase: open **Authentication**, then **Users**, then **Add user**, then **Create new user**, enter an email and password, and tick **Auto confirm user**. The first person ever added becomes Admin.
 
-To stop someone signing in, switch them off on the People screen. People are never deleted, so their history stays.
+To stop someone signing in, switch them off on the People screen. Their open sessions end on every device within the hour. People are never deleted, so their history stays.
 
 Also check, in Supabase under **Authentication**, then **Sign In / Providers**, that **Allow new users to sign up** is off.
 

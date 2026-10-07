@@ -36,6 +36,9 @@ export interface SignedInPerson {
   mustChangePassword: boolean
   role: Role
   permissions: string[]
+  /** The offices they belong to, and the main one. */
+  officeIds: string[]
+  primaryOfficeId: string | null
 }
 
 /** What the People screen saves for one person. */
@@ -87,14 +90,16 @@ export function formFor(person: Person): PersonForm {
 }
 
 /**
- * Checks the form and turns it into a change to save. A person in one office
- * has that office as their main office. A person in several must have one
- * of them picked. A person in no office has no main office.
+ * Checks the form and turns it into a change to save. Everyone who can sign
+ * in belongs to at least one office. A person in one office has that office
+ * as their main office. A person in several must have one of them picked.
+ * A switched-off person may be left with no office.
  */
 export function personChangeFrom(personId: string, form: PersonForm): { change: PersonChange } | { error: string } {
   if (!form.roleId) return { error: 'Pick a role.' }
 
   const officeIds = [...new Set(form.officeIds)]
+  if (form.isActive && officeIds.length === 0) return { error: 'Pick at least one office.' }
   let primaryOfficeId: string | null = null
   if (officeIds.length === 1) {
     primaryOfficeId = officeIds[0] ?? null
@@ -142,8 +147,6 @@ export function newPersonFrom(form: NewPersonForm): { person: NewPerson } | { er
   const email = form.email.trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Enter a valid email address.' }
   if (!form.firstName.trim()) return { error: 'Enter their first name.' }
-  if (!form.roleId) return { error: 'Pick a role.' }
-  if (form.officeIds.length === 0) return { error: 'Pick at least one office.' }
   const checked = personChangeFrom('', { ...form, isActive: true })
   if ('error' in checked) return checked
   return {

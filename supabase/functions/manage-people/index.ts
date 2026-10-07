@@ -10,6 +10,8 @@
 //
 // No email is sent. The temporary password is returned once, for the Admin
 // to pass on, and the person must choose their own when they first sign in.
+// Marking the password temporary also ends the person's sign-in sessions on
+// every device: the database does that when the profile changes.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3'
 import { generateTemporaryPassword, parsePeopleRequest } from './rules.ts'

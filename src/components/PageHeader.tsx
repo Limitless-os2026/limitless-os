@@ -138,6 +138,12 @@ export function SearchBox() {
   const [params] = useSearchParams()
   const [query, setQuery] = useState(() => params.get('q') ?? '')
 
+  // Opening a search from elsewhere (a link, the back button) shows its words here.
+  const inAddress = params.get('q')
+  useEffect(() => {
+    if (inAddress !== null) setQuery(inAddress)
+  }, [inAddress])
+
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     const trimmed = query.trim()
@@ -151,7 +157,7 @@ export function SearchBox() {
       <input
         type="search"
         aria-label="Search"
-        placeholder="Name, address, job or claim number"
+        placeholder="Name, phone, email or address"
         enterKeyHint="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
