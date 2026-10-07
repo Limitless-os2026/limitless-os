@@ -8,11 +8,12 @@ import {
   viewCounts,
   type AttentionItemData,
   type BoardCountData,
+  type SampleState,
   type TodayEntryData,
   type ViewCountData,
 } from '../fixtures/officeHome'
 import { combineParts, isLate, type AttentionPart } from './attention'
-import { statesFor, type LocationFilter, type StateCode } from './locations'
+import { coversState, type LocationFilter } from './locations'
 
 export interface AttentionRow {
   id: string
@@ -46,12 +47,15 @@ export interface OfficeHomeSource {
 
 const sampleSource: OfficeHomeSource = { attentionItems, todayEntries, boardCounts, viewCounts }
 
-function sumFor(jobs: Record<StateCode, number>, states: readonly StateCode[]): number {
+function sumFor(jobs: Record<SampleState, number>, states: readonly SampleState[]): number {
   return states.reduce((total, state) => total + jobs[state], 0)
 }
 
+const SAMPLE_STATES: readonly SampleState[] = ['PA', 'UT']
+
 export function officeHomeData(location: LocationFilter, source: OfficeHomeSource = sampleSource): OfficeHomeData {
-  const states = statesFor(location)
+  // A state with no sample data, such as a new one added in the database, shows nothing.
+  const states = SAMPLE_STATES.filter((state) => coversState(location, state))
 
   // Items with nothing waiting in the chosen location drop off the list.
   const attention = source.attentionItems.flatMap((item): AttentionRow[] => {

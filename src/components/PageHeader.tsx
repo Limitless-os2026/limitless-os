@@ -1,17 +1,18 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useLocationFilter } from '../lib/LocationContext'
-import { LOCATION_OPTIONS } from '../lib/locations'
 import { searchScreen } from '../lib/navigation'
 import { SearchIcon } from './Icons'
 
 interface PageHeaderProps {
   eyebrow?: ReactNode
   title: ReactNode
+  /** Office screens filter by location. Screens that do not, leave it out. */
+  locationFilter?: boolean
 }
 
 // Title on the left; the location filter and the one search box on the right.
-export function PageHeader({ eyebrow, title }: PageHeaderProps) {
+export function PageHeader({ eyebrow, title, locationFilter = true }: PageHeaderProps) {
   return (
     <div className="page-header">
       <div className="page-header__titles">
@@ -19,7 +20,7 @@ export function PageHeader({ eyebrow, title }: PageHeaderProps) {
         <h1 className="page-header__title">{title}</h1>
       </div>
       <div className="page-header__tools">
-        <LocationFilterControl />
+        {locationFilter && <LocationFilterControl />}
         <SearchBox />
       </div>
     </div>
@@ -27,10 +28,10 @@ export function PageHeader({ eyebrow, title }: PageHeaderProps) {
 }
 
 export function LocationFilterControl() {
-  const { location, setLocation } = useLocationFilter()
+  const { location, setLocation, options } = useLocationFilter()
   return (
     <div role="group" aria-label="Location" className="location-filter">
-      {LOCATION_OPTIONS.map((option) => (
+      {options.map((option) => (
         <button
           key={option.value}
           type="button"
