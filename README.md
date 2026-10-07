@@ -16,7 +16,7 @@ Phase 1, steps 1 to 3:
 - Customers: a list, a customer page with Call and Text buttons and the customer's properties, a New customer form that needs only a name and a phone number, and a warning when the phone number already belongs to someone. Sales see the customers they created, Project managers the customers in their offices, and Admins and Accountants all of them, until jobs arrive and widen this.
 - Partners: SERVPRO ownership groups, their franchises and the contacts at each, in that order, plus other partners such as carriers and property managers. Anyone can add or edit them; only Project managers and Admins change an organization's kind or parent.
 - Search, from the box at the top of every screen: customers by name, phone, email or property address, and organizations and contacts by name.
-- An "Update ready" bar on every screen when a newer version of the app has been published, with a Refresh button.
+- Newer versions arrive by themselves. When one has been published, the app brings it in the next time it opens or comes back to the front and switches to it, unless something has been typed into a field; then an "Update ready" bar with a Refresh button appears instead, so nothing typed is lost. The version in use is in small print at the bottom of the sidebar and on the sign-in screen.
 - The Office home screen, with made-up sample data: what needs attention, today's schedule and the boards. The location buttons come from the states and offices in the database.
 - Every other menu link opens a page saying which step it arrives in.
 - The app can be installed to a phone or iPad home screen, and it opens without signal once it has been loaded once.
@@ -85,6 +85,8 @@ The app is a set of plain files, so Cloudflare can host it for free and redeploy
 
 The file `wrangler.jsonc` tells Cloudflare to serve the `dist` folder and to send every address back to the app, so links straight to a screen such as `/customers` work.
 
+The file `public/_headers` ends up in `dist` too. It tells Cloudflare never to cache two files: `sw.js`, the part of the app that keeps the saved copy, and `version.json`, which says which build is published. Both must come fresh from the server every time, or a phone could keep being told there is nothing new.
+
 If you use a Cloudflare **Pages** project instead, set the build command to `npm run build` and the output folder to `dist`. Pages also sends unknown addresses to the app automatically.
 
 ### Settings
@@ -95,4 +97,6 @@ Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` as described in [Connecting the 
 
 Open the deployed address in Safari, tap Share, then **Add to Home Screen**. On Android, open it in Chrome and tap **Install app**.
 
-When a newer version is published, the app shows an **Update ready** bar at the bottom of the screen. Tap **Refresh** to switch to it. The app checks for a new version each time it opens or comes back to the front.
+When a newer version is published, the app brings it in the next time it opens or comes back to the front, and switches to it by itself as long as nothing has been typed into a field. If something has been typed, it shows an **Update ready** bar at the bottom of the screen instead; tap **Refresh** to switch when you are ready.
+
+To check which version a device is on, look at the small print at the bottom of the sidebar (or of the sign-in screen), for example "Version 0.1.0 (a1b2c3d), built Oct 7, 2026". The letters and digits in brackets are the first seven characters of the commit that was deployed. Cloudflare shows the same commit on each deployment, and so does GitHub.

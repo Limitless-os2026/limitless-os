@@ -1,7 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter } from 'react-router'
-import { registerSW } from 'virtual:pwa-register'
 
 // Fonts ship inside the app so the installed app works with no signal.
 import '@fontsource/barlow/latin-400.css'
@@ -13,20 +12,24 @@ import './styles/app.css'
 
 import { App } from './App'
 import { UpdateBar } from './components/UpdateBar'
-import { checkForUpdates, markUpdateReady } from './lib/appUpdate'
+import { watchPublishedVersion } from './lib/publishedVersion'
+import { startServiceWorker } from './lib/serviceWorker'
 import { createSupabaseBackend, readSupabaseSettings } from './lib/supabaseBackend'
+import { APP_VERSION } from './lib/version'
 import { SetupNeeded } from './pages/Notices'
 import { routes } from './routes'
 
-// A newer version waits until the person taps Refresh on the Update ready
-// bar, so nobody loses what they are typing, and nobody stays on an old copy
-// without knowing.
-const updateServiceWorker = registerSW({
-  immediate: true,
-  onNeedRefresh: () => markUpdateReady(() => updateServiceWorker()),
-  onRegisteredSW: (_url, registration) => {
-    if (registration) checkForUpdates(registration)
-  },
+// The installed app keeps a saved copy of itself. When a newer version is
+// published, the service worker brings it in and takes over by itself; the
+// page then switches when nothing has been typed, or shows the Update ready
+// bar. See lib/appUpdate.ts. The worker is only built for production builds.
+const worker = startServiceWorker(import.meta.env.PROD && 'serviceWorker' in navigator ? navigator.serviceWorker : undefined)
+
+// Second safety net, independent of the worker: compare with the version
+// file on the server when the app opens or comes back to the foreground.
+watchPublishedVersion({
+  current: APP_VERSION,
+  onBehind: (published) => void worker.catchUp(published),
 })
 
 const root = document.getElementById('root')

@@ -1,0 +1,11 @@
+# Cloudflare reads this file (Pages, and Workers with static assets).
+#
+# The service worker and the version file must come from the server every
+# time, never from the browser's cache or Cloudflare's. Otherwise a copy of
+# the app could keep being told there is nothing new.
+
+/sw.js
+  Cache-Control: no-store, no-cache, max-age=0, must-revalidate
+
+/version.json
+  Cache-Control: no-store, no-cache, max-age=0, must-revalidate
