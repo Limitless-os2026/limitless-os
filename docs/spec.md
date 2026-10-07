@@ -354,3 +354,4 @@ Carry these in pull requests when they become relevant. Do not resolve them by g
 - Adding organizations: anyone can add an organization and place it under an ownership group as they add it, so field staff can record a new franchise. Should placing a new organization in the chain also be limited to Project managers and Admins?
 - Editing customers: anyone who can see a customer can edit them, Accountants included. Should Accountants be read-only on customers?
 - Audit entries by office go by the office a person is in now. When someone moves office, the entries about them move with them. Should they instead stay with the office where the change was made?
+- A phone number needs at least 7 digits to be saved. Should the floor be 10, a full US number?
