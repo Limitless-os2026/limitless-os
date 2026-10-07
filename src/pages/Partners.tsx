@@ -6,6 +6,7 @@ import {
   ActionBar,
   BackLink,
   CallLink,
+  countOf,
   DetailRow,
   EmailLink,
   EmptyRow,
@@ -96,7 +97,7 @@ export function Partners() {
   const tree = partners.organizations.data && partners.contacts.data ? partnersTree(partners.organizations.data, partners.contacts.data) : null
   const counts =
     partners.organizations.data && partners.contacts.data
-      ? `${partners.organizations.data.length} organizations, ${partners.contacts.data.length} contacts`
+      ? `${countOf(partners.organizations.data.length, 'organization')}, ${countOf(partners.contacts.data.length, 'contact')}`
       : undefined
 
   return (
@@ -251,8 +252,10 @@ export function OrganizationPage() {
             )}
           </section>
           {children.length > 0 && (
-            <section aria-label="Organizations in this group" className="panel">
-              <PanelTitle>{organization.orgType === 'servpro_group' ? 'Franchises' : 'Organizations in this group'}</PanelTitle>
+            <section aria-labelledby="children-title" className="panel">
+              <h2 id="children-title" className="panel__title">
+                {organization.orgType === 'servpro_group' ? 'Franchises' : 'Organizations in this group'}
+              </h2>
               {children.map((child) => (
                 <Link key={child.id} to={`/partners/${child.id}`} className="list-row">
                   <span className="list-row__main">

@@ -227,6 +227,41 @@ describe('New customer', () => {
     expect(backend.addedCustomers).toHaveLength(0)
   })
 
+  it('shows the warning before saving when the number is pasted and saved at once', async () => {
+    const user = userEvent.setup()
+    const backend = fakeBackend({ signedInAs: 'user-sales' })
+    // A slow lookup, so Save is tapped before the answer is back.
+    let answer: (matches: Awaited<ReturnType<typeof backend.findCustomersByPhone>>) => void = () => undefined
+    backend.findCustomersByPhone = () => new Promise((resolve) => (answer = resolve))
+    renderApp('/customers/new', backend)
+
+    await user.type(await screen.findByLabelText('First name'), 'Dana')
+    await user.click(screen.getByLabelText('Phone'))
+    await user.paste('610-555-0101')
+    await user.click(screen.getByRole('button', { name: 'Save customer' }))
+    expect(backend.addedCustomers).toHaveLength(0)
+
+    answer([{ customerId: 'customer-dana', displayName: 'Dana Whitfield', officeName: 'Reading', canOpen: true, archived: false }])
+    const warning = await screen.findByRole('status')
+    expect(warning).toHaveTextContent('This phone number already belongs to Dana Whitfield (Reading office).')
+    expect(backend.addedCustomers).toHaveLength(0)
+
+    // Seen the warning: a second tap saves.
+    await user.click(screen.getByRole('button', { name: 'Save customer' }))
+    await screen.findByRole('region', { name: 'Properties' })
+    expect(backend.addedCustomers).toHaveLength(1)
+  })
+
+  it('says when the duplicate check could not run', async () => {
+    const user = userEvent.setup()
+    const backend = fakeBackend({ signedInAs: 'user-sales' })
+    backend.findCustomersByPhone = () => Promise.reject(new Error('offline'))
+    renderApp('/customers/new', backend)
+
+    await user.type(await screen.findByLabelText('Phone'), '610-555-0199')
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not check whether this phone number is already in use.')
+  })
+
   it('still lets the customer be saved after the warning', async () => {
     const user = userEvent.setup()
     const { backend } = renderApp('/customers/new', fakeBackend({ signedInAs: 'user-sales' }))

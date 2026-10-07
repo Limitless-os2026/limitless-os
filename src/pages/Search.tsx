@@ -43,7 +43,9 @@ export function Search() {
       ? capped
         ? `${found.length} or more matches for “${query}”`
         : `${found.length} ${found.length === 1 ? 'match' : 'matches'} for “${query}”`
-      : `Searching for “${query}”`
+      : results.isError
+        ? `Search for “${query}”`
+        : `Searching for “${query}”`
     : undefined
 
   return (

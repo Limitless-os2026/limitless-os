@@ -49,6 +49,14 @@ describe('Partners list', () => {
     expect(screen.getByText('7 organizations, 6 contacts')).toBeInTheDocument()
   })
 
+  it('counts in the singular when there is one of something', async () => {
+    const backend = fakeBackend({ signedInAs: 'user-admin' })
+    backend.organizations.splice(1)
+    backend.contacts.splice(1)
+    renderApp('/partners', backend)
+    expect(await screen.findByText('1 organization, 1 contact')).toBeInTheDocument()
+  })
+
   it('offers a new organization as the next step and a new contact beside it', async () => {
     renderApp('/partners')
     expect(await screen.findByRole('link', { name: 'New organization' })).toHaveClass('button-next')
@@ -79,8 +87,7 @@ describe('Organization page', () => {
   it('lists the franchises of an ownership group', async () => {
     renderApp('/partners/org-keystone')
 
-    const franchises = await screen.findByRole('region', { name: 'Organizations in this group' })
-    expect(within(franchises).getByRole('heading', { name: 'Franchises' })).toBeInTheDocument()
+    const franchises = await screen.findByRole('region', { name: 'Franchises' })
     expect(within(franchises).getAllByRole('link').map((row) => row.textContent)).toEqual([
       'SERVPRO of Birch HollowSERVPRO franchise(610) 555-0151',
       'SERVPRO of Pine RidgeSERVPRO franchise(610) 555-0152',

@@ -77,6 +77,11 @@ export function LoadProblem({ what, retry }: { what: string; retry: () => void }
   )
 }
 
+/** "1 customer", "4 customers". */
+export function countOf(count: number, noun: string): string {
+  return `${count} ${count === 1 ? noun : `${noun}s`}`
+}
+
 export function LoadingText({ children }: { children: ReactNode }) {
   return (
     <p role="status" className="muted">

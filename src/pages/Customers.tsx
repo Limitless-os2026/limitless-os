@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '../components/PageHeader'
@@ -6,6 +6,7 @@ import {
   ActionBar,
   BackLink,
   CallLink,
+  countOf,
   DetailRow,
   EmailLink,
   EmptyRow,
@@ -42,6 +43,7 @@ import {
   type NewCustomer,
   type NewCustomerForm,
   type NewProperty,
+  type PhoneMatch,
   type Property,
   type PropertyForm,
 } from '../lib/customers'
@@ -128,6 +130,7 @@ export function Customers() {
         </section>
       ) : (
         <section aria-label="Customers" className="panel">
+          {properties.isError && <EmptyRow>Could not load the property addresses. Showing each customer's office instead.</EmptyRow>}
           {shown.map((customer) => {
             const first = properties.data?.find((property) => property.customerId === customer.id)
             return (
@@ -153,10 +156,6 @@ function inLocation(customer: Customer, location: string, locations: Locations):
   if (!office) return location === 'all'
   const state = locations.states.find((candidate) => candidate.id === office.stateId)
   return state ? coversOffice(location, state.code, office.id) : location === 'all'
-}
-
-function countOf(count: number, noun: string): string {
-  return `${count} ${count === 1 ? noun : `${noun}s`}`
 }
 
 // ---------------------------------------------------------------------------
@@ -309,17 +308,21 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
   })
   const [error, setError] = useState<string | null>(null)
 
+  const duplicates = useDuplicateLookup(form.phone)
+
   const save = useMutation({
     mutationFn: (customer: NewCustomer) => backend.addCustomer(customer),
     onSuccess: async ({ customerId }) => {
       await queryClient.invalidateQueries({ queryKey: ['customers'] })
       await queryClient.invalidateQueries({ queryKey: ['properties'] })
+      // The number now belongs to someone, so the next form asks again.
+      queryClient.removeQueries({ queryKey: ['customers-with-phone'] })
       navigate(`/customers/${customerId}`)
     },
     onError: (caught) => setError(friendlyMessage(caught, 'Could not save the customer. Check the connection and try again.')),
   })
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault()
     const result = newCustomerFrom(form)
     if ('error' in result) {
@@ -327,6 +330,8 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
       return
     }
     setError(null)
+    // A number pasted in and saved at once still gets its warning first.
+    if (!(await duplicates.seenBeforeSaving())) return
     save.mutate(result.customer)
   }
 
@@ -361,7 +366,7 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
             onChange={(event) => setForm({ ...form, phone: event.target.value })}
           />
         </label>
-        <DuplicateWarning phone={form.phone} />
+        <DuplicateWarning lookup={duplicates} />
 
         {offices.length > 1 && (
           <label className="field">
@@ -468,22 +473,77 @@ function NameFields({
   )
 }
 
-// Looks up the phone number a moment after typing stops. When it already
-// belongs to someone, says who and offers to open them instead.
-function DuplicateWarning({ phone, except }: { phone: string; except?: string }) {
+interface DuplicateLookup {
+  /** Customers who already have the number, once it has been looked up. */
+  matches: PhoneMatch[]
+  /** The lookup itself failed, so nobody can say whether the number is in use. */
+  failed: boolean
+  /**
+   * Called before saving. Makes sure the number as typed right now has been
+   * looked up and, when it belongs to someone, that the warning has been on
+   * screen. Returns false the first time a warning has to be shown, so the
+   * save waits for a second tap.
+   */
+  seenBeforeSaving: () => Promise<boolean>
+}
+
+// Looks up the phone number a moment after typing stops. `except` is the
+// customer being edited, whose own number is not a duplicate.
+function useDuplicateLookup(phone: string, except?: string): DuplicateLookup {
   const backend = useBackend()
+  const queryClient = useQueryClient()
   const settled = useSettled(phone)
-  const key = phoneKey(settled)
-  const complete = isPhoneComplete(settled)
+  const settledKey = phoneKey(settled)
   const lookup = useQuery({
-    queryKey: ['customers-with-phone', key],
+    queryKey: ['customers-with-phone', settledKey],
     queryFn: () => backend.findCustomersByPhone(settled),
-    enabled: complete,
+    enabled: isPhoneComplete(settled),
     staleTime: 30_000,
   })
-  const matches = (lookup.data ?? []).filter((match) => except === undefined || match.customerId !== except)
-  const warning = complete ? duplicateWarning(matches) : null
-  if (!warning) return null
+  const matches = useMemo(
+    () => (lookup.data ?? []).filter((match) => except === undefined || match.customerId !== except),
+    [lookup.data, except],
+  )
+  // The number whose warning the person has already seen on screen.
+  const [shownKey, setShownKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (lookup.data && matches.length > 0) setShownKey(settledKey)
+  }, [lookup.data, matches, settledKey])
+
+  async function seenBeforeSaving(): Promise<boolean> {
+    const key = phoneKey(phone)
+    if (!isPhoneComplete(phone) || shownKey === key) return true
+    try {
+      const found = await queryClient.fetchQuery({
+        queryKey: ['customers-with-phone', key],
+        queryFn: () => backend.findCustomersByPhone(phone),
+        staleTime: 30_000,
+      })
+      if (found.filter((match) => except === undefined || match.customerId !== except).length === 0) return true
+    } catch {
+      // Could not check. The notice says so, and the next tap saves anyway.
+    }
+    setShownKey(key)
+    return false
+  }
+
+  return { matches, failed: lookup.isError, seenBeforeSaving }
+}
+
+// When the number already belongs to someone, says who and offers to open
+// them instead. When the lookup failed, says that, so the person can look
+// before saving.
+function DuplicateWarning({ lookup }: { lookup: DuplicateLookup }) {
+  const { matches, failed } = lookup
+  const warning = duplicateWarning(matches)
+  if (!warning) {
+    if (!failed) return null
+    return (
+      <div role="status" className="notice">
+        <p className="notice__muted">Could not check whether this phone number is already in use. Check the connection, or look in Customers first.</p>
+      </div>
+    )
+  }
 
   return (
     <div role="status" className="notice">
@@ -592,17 +652,20 @@ function EditCustomerForm({ customer }: { customer: Customer }) {
   const [form, setForm] = useState<CustomerForm>(() => customerFormFor(customer))
   const [error, setError] = useState<string | null>(null)
 
+  const duplicates = useDuplicateLookup(form.phone, customer.id)
+
   const save = useMutation({
     mutationFn: (change: CustomerChange) => backend.updateCustomer(change),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['customers'] })
       await queryClient.invalidateQueries({ queryKey: ['customer', customer.id] })
+      queryClient.removeQueries({ queryKey: ['customers-with-phone'] })
       navigate(`/customers/${customer.id}`)
     },
     onError: (caught) => setError(friendlyMessage(caught, 'Could not save. Check the connection and try again.')),
   })
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault()
     const result = customerChangeFrom(customer.id, form)
     if ('error' in result) {
@@ -610,6 +673,7 @@ function EditCustomerForm({ customer }: { customer: Customer }) {
       return
     }
     setError(null)
+    if (!(await duplicates.seenBeforeSaving())) return
     save.mutate(result.change)
   }
 
@@ -631,7 +695,7 @@ function EditCustomerForm({ customer }: { customer: Customer }) {
             <input type="tel" autoComplete="off" inputMode="tel" value={form.phoneAlt} onChange={(event) => setForm({ ...form, phoneAlt: event.target.value })} />
           </label>
         </div>
-        <DuplicateWarning phone={form.phone} except={customer.id} />
+        <DuplicateWarning lookup={duplicates} />
 
         <label className="field">
           <span>Email <span className="field__optional">(optional)</span></span>
