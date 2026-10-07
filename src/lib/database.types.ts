@@ -186,10 +186,12 @@ export type ContactsRow = StandardColumns & {
 
 /** What customers_with_phone gives back: enough for the duplicate warning, nothing more. */
 export type PhoneMatchRow = {
-  customer_id: string
+  /** Only when the caller may open the customer. */
+  customer_id: string | null
   display_name: string
   office_name: string
   can_open: boolean
+  archived: boolean
 }
 
 export type SearchRow = {

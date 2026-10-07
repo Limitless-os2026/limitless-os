@@ -51,11 +51,14 @@ export interface Property {
 
 /** A customer who already has the phone number being typed. */
 export interface PhoneMatch {
-  customerId: string
+  /** Only given when the signed-in person may open that customer. */
+  customerId: string | null
   displayName: string
   officeName: string
   /** Whether the signed-in person may open that customer. */
   canOpen: boolean
+  /** An archived customer still counts, so nobody is entered twice. */
+  archived: boolean
 }
 
 /** The digits of a phone number, however it was written. */
@@ -358,5 +361,6 @@ export function duplicateWarning(matches: readonly PhoneMatch[]): string | null 
   const [first, ...rest] = matches
   if (!first) return null
   const who = rest.length === 0 ? first.displayName : `${first.displayName} and ${rest.length} more`
-  return `This phone number already belongs to ${who} (${first.officeName} office).`
+  const archived = first.archived && rest.every((match) => match.archived) ? 'an archived customer, ' : ''
+  return `This phone number already belongs to ${archived}${who} (${first.officeName} office).`
 }

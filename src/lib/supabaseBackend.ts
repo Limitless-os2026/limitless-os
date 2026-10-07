@@ -434,6 +434,7 @@ export function createSupabaseBackend(settings: SupabaseSettings): Backend {
         displayName: row.display_name,
         officeName: row.office_name,
         canOpen: row.can_open,
+        archived: row.archived,
       }))
     },
 

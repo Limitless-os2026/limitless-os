@@ -238,6 +238,32 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Records keep their id. Every link, and every audit entry, points at it.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.set_standard_columns()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+    new.updated_at := new.created_at;
+    new.created_by := auth.uid();
+  else
+    if new.id is distinct from old.id then
+      raise exception 'A record''s id cannot be changed.' using errcode = 'check_violation';
+    end if;
+    new.created_at := old.created_at;
+    new.created_by := old.created_by;
+    new.updated_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Sign out everywhere. When a person is switched off, or given a temporary
 -- password, their sign-in sessions end on every device. Their open screens
 -- stop working at the next request and they are sent back to sign in.
@@ -246,6 +272,22 @@ $$;
 -- ever not allowed to touch it, the change to the person still goes through
 -- and a warning is logged, because the access rules already shut them out.
 -- ---------------------------------------------------------------------------
+
+create function public.end_sessions(person uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from auth.sessions where user_id = person;
+exception
+  when insufficient_privilege or undefined_table then
+    raise warning 'Could not end the sign-in sessions of %: %', person, sqlerrm;
+end;
+$$;
+
+revoke execute on function public.end_sessions(uuid) from public, anon, authenticated;
 
 create function public.end_sessions_on_profile_change()
 returns trigger
@@ -256,12 +298,7 @@ as $$
 begin
   if (old.is_active and not new.is_active)
      or (not old.must_change_password and new.must_change_password) then
-    begin
-      delete from auth.sessions where user_id = new.id;
-    exception
-      when insufficient_privilege or undefined_table then
-        raise warning 'Could not end the sign-in sessions of %: %', new.id, sqlerrm;
-    end;
+    perform public.end_sessions(new.id);
   end if;
   return null;
 end;
@@ -271,3 +308,26 @@ revoke execute on function public.end_sessions_on_profile_change() from public, 
 
 create trigger end_sessions_on_profile_change after update of is_active, must_change_password on public.profiles
   for each row execute function public.end_sessions_on_profile_change();
+
+-- A reset for someone already on a temporary password changes nothing on
+-- the profile, so the reset ends their sessions itself as well.
+create or replace function public.require_password_change(person_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.has_permission('manage_users') then
+    raise exception 'Only people managers can reset passwords.' using errcode = 'insufficient_privilege';
+  end if;
+
+  update public.profiles set must_change_password = true where id = person_id;
+
+  if not found then
+    raise exception 'That person was not found.' using errcode = 'no_data_found';
+  end if;
+
+  perform public.end_sessions(person_id);
+end;
+$$;

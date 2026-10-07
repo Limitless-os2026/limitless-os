@@ -1452,11 +1452,11 @@ reset role;
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000b');
 select tests.check(
-  (select display_name = 'Dana Whitfield' and office_name = 'Reading' and not can_open
+  (select display_name = 'Dana Whitfield' and office_name = 'Reading' and not can_open and customer_id is null
      from public.customers_with_phone('(610) 555-0101')),
   'Sales are warned about a customer someone else added, but cannot open them');
 select tests.check(
-  (select display_name = 'Nadia Ferreira' and can_open from public.customers_with_phone('610-555-0110')),
+  (select display_name = 'Nadia Ferreira' and can_open and customer_id is not null from public.customers_with_phone('610-555-0110')),
   'Sales can open their own customer from the warning');
 reset role;
 
@@ -1482,8 +1482,9 @@ reset role;
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000e');
 select tests.check(
-  tests.count_rows($$select * from public.customers_with_phone('610-555-0102')$$) = 0,
-  'an archived customer gives no duplicate warning');
+  (select archived and not can_open and customer_id is null and display_name = 'Samuel Okafor'
+     from public.customers_with_phone('610-555-0102')),
+  'an archived customer still gives a duplicate warning, marked archived, with no way to open them');
 select tests.check(
   tests.count_rows($$select * from public.search_records('Okafor')$$) = 0,
   'an archived customer is not found by search');
@@ -1495,8 +1496,8 @@ reset role;
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000e');
 select tests.check(
-  tests.count_rows($$select * from public.customers_with_phone('610-555-0102')$$) = 1,
-  'bringing a customer back from the archive brings back the warning');
+  (select can_open and not archived and customer_id is not null from public.customers_with_phone('610-555-0102')),
+  'bringing a customer back from the archive makes them openable from the warning again');
 reset role;
 
 -- ---------------------------------------------------------------------------
@@ -1816,3 +1817,108 @@ select tests.check(
   (select display_name from public.customers_with_phone('1-484-555-0199')) = 'Dana Whitfield',
   'the duplicate warning also knows a customer''s other phone number');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Records keep their id, so their history and every link to them hold.
+-- ---------------------------------------------------------------------------
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000b');
+select tests.fails(
+  $$update public.customers set id = '22222222-2222-2222-2222-222222222222' where first_name = 'Nadia'$$,
+  '23514', 'a customer''s id cannot be changed, even by the person who added them');
+reset role;
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select tests.fails(
+  $$update public.organizations set id = '22222222-2222-2222-2222-222222222222' where name = 'Maple Court Property Management'$$,
+  '23514', 'an organization''s id cannot be changed, even by an Admin');
+select tests.fails(
+  $$update public.offices set id = '22222222-2222-2222-2222-222222222222' where name = 'Test office'$$,
+  '23514', 'an office''s id cannot be changed either');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- A loop is refused however long the chain is.
+-- ---------------------------------------------------------------------------
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+do $$
+declare
+  parent uuid := null;
+  i integer;
+begin
+  for i in 1..60 loop
+    insert into public.organizations (name, org_type, parent_organization_id)
+    values ('Long chain ' || i, 'other', parent)
+    returning id into parent;
+  end loop;
+end;
+$$;
+select tests.fails(
+  $$update public.organizations
+       set parent_organization_id = (select id from public.organizations where name = 'Long chain 60')
+     where name = 'Long chain 1'$$,
+  '23514', 'closing a chain of sixty organizations into a loop is refused');
+select tests.fails(
+  $$update public.organizations
+       set parent_organization_id = (select id from public.organizations where name = 'Long chain 55')
+     where name = 'Long chain 1'$$,
+  '23514', 'a loop further than fifty steps up the chain is refused too');
+reset role;
+-- Tidied away as the database owner, so the counts below are unchanged.
+delete from public.organizations where name like 'Long chain %';
+
+-- ---------------------------------------------------------------------------
+-- An audit entry is never more visible than the record it is about. Should
+-- an Admin ever give Sales the audit permission, a rep still sees only the
+-- entries about their own customers and themself.
+-- ---------------------------------------------------------------------------
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+insert into public.role_permissions (role_id, permission_key)
+  values ((select id from public.roles where key = 'sales'), 'view_audit_log');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000b');
+select tests.check(
+  tests.count_rows($$select * from public.audit_log where table_name = 'customers'$$) > 0
+  and tests.count_rows($$select * from public.audit_log where table_name = 'customers'$$)
+      = tests.count_all($$select * from public.audit_log a where a.table_name = 'customers'
+                            and a.record_id in (select c.id from public.customers c where c.created_by = '00000000-0000-0000-0000-00000000000b')$$),
+  'with the audit permission, Sales sees the entries about their own customers and no others');
+select tests.check(
+  tests.count_rows($$select * from public.audit_log where table_name = 'profiles' and record_id <> '00000000-0000-0000-0000-00000000000b'$$) = 0
+  and tests.count_rows($$select * from public.audit_log where table_name = 'profiles' and record_id = '00000000-0000-0000-0000-00000000000b'$$) > 0,
+  'with the audit permission, Sales sees the entries about themself and no other person');
+select tests.check(
+  tests.count_rows($$select * from public.audit_log where table_name in ('roles', 'role_permissions')$$) = 0,
+  'with the audit permission, Sales still sees no company-wide entries');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+delete from public.role_permissions
+ where role_id = (select id from public.roles where key = 'sales') and permission_key = 'view_audit_log';
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- A password reset for someone already on a temporary password still signs
+-- them out everywhere.
+-- ---------------------------------------------------------------------------
+
+select tests.check(
+  (select must_change_password from public.profiles where id = '00000000-0000-0000-0000-00000000000f'),
+  'the new hire is still on a temporary password from earlier');
+insert into auth.sessions (user_id) values
+  ('00000000-0000-0000-0000-00000000000f'), ('00000000-0000-0000-0000-00000000000f');
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.require_password_change('00000000-0000-0000-0000-00000000000f');
+reset role;
+select tests.check(
+  (select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-00000000000f') = 0,
+  'a second password reset, while the first temporary password is still in use, signs the person out everywhere');

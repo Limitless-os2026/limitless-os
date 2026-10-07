@@ -481,20 +481,24 @@ function DuplicateWarning({ phone, except }: { phone: string; except?: string })
     enabled: complete,
     staleTime: 30_000,
   })
-  const matches = (lookup.data ?? []).filter((match) => match.customerId !== except)
+  const matches = (lookup.data ?? []).filter((match) => except === undefined || match.customerId !== except)
   const warning = complete ? duplicateWarning(matches) : null
   if (!warning) return null
 
   return (
     <div role="status" className="notice">
       <p className="notice__text">{warning}</p>
-      {matches.map((match) =>
-        match.canOpen ? (
+      {matches.map((match, index) =>
+        match.canOpen && match.customerId ? (
           <Link key={match.customerId} to={`/customers/${match.customerId}`} className="text-link">
             Open {match.displayName} instead
           </Link>
+        ) : match.archived ? (
+          <p key={`archived-${index}`} className="notice__muted">
+            {match.displayName} is archived. Ask a Project manager in the {match.officeName} office to bring them back instead of adding them again.
+          </p>
         ) : (
-          <p key={match.customerId} className="notice__muted">
+          <p key={`hidden-${index}`} className="notice__muted">
             You cannot open {match.displayName}. Ask a Project manager in the {match.officeName} office before adding them again.
           </p>
         ),

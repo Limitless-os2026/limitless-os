@@ -234,15 +234,18 @@ describe('which office a new customer goes in', () => {
 
 describe('duplicate warning', () => {
   it('names the customer and their office', () => {
-    expect(duplicateWarning([{ customerId: 'c1', displayName: 'Dana Whitfield', officeName: 'Reading', canOpen: true }])).toBe(
+    expect(duplicateWarning([{ customerId: 'c1', displayName: 'Dana Whitfield', officeName: 'Reading', canOpen: true, archived: false }])).toBe(
       'This phone number already belongs to Dana Whitfield (Reading office).',
     )
     expect(
       duplicateWarning([
-        { customerId: 'c1', displayName: 'Dana Whitfield', officeName: 'Reading', canOpen: true },
-        { customerId: 'c2', displayName: 'Dan Whitfield', officeName: 'Reading', canOpen: false },
+        { customerId: 'c1', displayName: 'Dana Whitfield', officeName: 'Reading', canOpen: true, archived: false },
+        { customerId: null, displayName: 'Dan Whitfield', officeName: 'Reading', canOpen: false, archived: false },
       ]),
     ).toBe('This phone number already belongs to Dana Whitfield and 1 more (Reading office).')
+    expect(duplicateWarning([{ customerId: null, displayName: 'Sam Okafor', officeName: 'Reading', canOpen: false, archived: true }])).toBe(
+      'This phone number already belongs to an archived customer, Sam Okafor (Reading office).',
+    )
     expect(duplicateWarning([])).toBeNull()
   })
 })

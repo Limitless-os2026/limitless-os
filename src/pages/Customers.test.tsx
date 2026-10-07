@@ -243,13 +243,26 @@ describe('New customer', () => {
   it('explains when the matching customer cannot be opened', async () => {
     const user = userEvent.setup()
     const backend = fakeBackend({ signedInAs: 'user-sales' })
-    backend.findCustomersByPhone = async () => [{ customerId: 'customer-luis', displayName: 'Luis Herrera', officeName: 'American Fork', canOpen: false }]
+    backend.findCustomersByPhone = async () => [{ customerId: null, displayName: 'Luis Herrera', officeName: 'American Fork', canOpen: false, archived: false }]
     renderApp('/customers/new', backend)
 
     await user.type(await screen.findByLabelText('Phone'), '801-555-0104')
     const warning = await screen.findByRole('status')
     expect(warning).toHaveTextContent('This phone number already belongs to Luis Herrera (American Fork office).')
     expect(warning).toHaveTextContent('You cannot open Luis Herrera. Ask a Project manager in the American Fork office')
+    expect(within(warning).queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('says when the number belongs to an archived customer', async () => {
+    const user = userEvent.setup()
+    const backend = fakeBackend({ signedInAs: 'user-sales' })
+    backend.findCustomersByPhone = async () => [{ customerId: null, displayName: 'Sam Okafor', officeName: 'Reading', canOpen: false, archived: true }]
+    renderApp('/customers/new', backend)
+
+    await user.type(await screen.findByLabelText('Phone'), '610-555-0102')
+    const warning = await screen.findByRole('status')
+    expect(warning).toHaveTextContent('This phone number already belongs to an archived customer, Sam Okafor (Reading office).')
+    expect(warning).toHaveTextContent('Sam Okafor is archived. Ask a Project manager in the Reading office to bring them back')
     expect(within(warning).queryByRole('link')).not.toBeInTheDocument()
   })
 

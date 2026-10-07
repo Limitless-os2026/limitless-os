@@ -114,6 +114,8 @@ create index organizations_external_idx on public.organizations (external_source
 -- An organization cannot be its own parent through a loop either. Runs as
 -- the table owner so it walks the whole chain, including any organization
 -- the person making the change cannot see (an archived one, for instance).
+-- The walk uses "union", not "union all", so it stops by itself when it
+-- meets an organization twice: no cap on the length of a chain.
 create function public.keep_organizations_a_tree()
 returns trigger
 language plpgsql
@@ -128,14 +130,13 @@ begin
   end if;
 
   with recursive chain as (
-    select o.id, o.parent_organization_id, 1 as depth
+    select o.id, o.parent_organization_id
       from public.organizations o
      where o.id = new.parent_organization_id
-    union all
-    select o.id, o.parent_organization_id, chain.depth + 1
+    union
+    select o.id, o.parent_organization_id
       from public.organizations o
       join chain on o.id = chain.parent_organization_id
-     where chain.depth < 50
   )
   select exists (select 1 from chain where chain.id = new.id) into loops;
 

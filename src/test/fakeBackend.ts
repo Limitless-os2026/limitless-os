@@ -402,6 +402,7 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
             displayName: customerName(customer),
             officeName: backend.locations.offices.find((office) => office.id === customer.officeId)?.name ?? '',
             canOpen: true,
+            archived: false,
           }),
         )
     },

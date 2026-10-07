@@ -156,7 +156,10 @@ create trigger guard_organization_structure before update on public.organization
   for each row execute function public.guard_organization_structure();
 
 -- ---------------------------------------------------------------------------
--- Audit trail by office, continued: customers belong to an office.
+-- Audit trail by office, continued: customers belong to an office. An audit
+-- entry is never more visible than the record it is about, so the customers
+-- branch uses the same rule as the customers table, and an "own" scope role
+-- sees only the entries about themself.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.audit_entry_in_my_scope(table_name text, record_id uuid, changes jsonb)
@@ -168,13 +171,24 @@ set search_path = ''
 as $$
 declare
   office uuid;
+  person uuid;
 begin
   if table_name = 'profiles' then
+    if public.my_scope() = 'own' then
+      return record_id = auth.uid();
+    end if;
     return exists (
       select 1 from public.profile_offices po
        where po.profile_id = record_id and public.office_in_my_scope(po.office_id)
     );
   elsif table_name = 'profile_offices' then
+    if public.my_scope() = 'own' then
+      person := coalesce(changes -> 'profile_id' ->> 'new', changes -> 'profile_id' ->> 'old')::uuid;
+      if person is null then
+        select po.profile_id into person from public.profile_offices po where po.id = record_id;
+      end if;
+      return person = auth.uid();
+    end if;
     office := coalesce(changes -> 'office_id' ->> 'new', changes -> 'office_id' ->> 'old')::uuid;
     if office is null then
       select po.office_id into office from public.profile_offices po where po.id = record_id;
@@ -183,7 +197,7 @@ begin
   elsif table_name = 'customers' then
     return exists (
       select 1 from public.customers c
-       where c.id = record_id and public.office_in_my_scope(c.office_id)
+       where c.id = record_id and public.can_see_customer(c.id, c.office_id, c.created_by)
     );
   end if;
   return false;
@@ -211,7 +225,7 @@ $$;
 
 grant execute on function public.phone_key(text) to authenticated;
 
-create index customers_phone_key_idx on public.customers (public.phone_key(phone_digits)) where archived_at is null;
+create index customers_phone_key_idx on public.customers (public.phone_key(phone_digits));
 
 -- How a customer is named in lists, search results and the duplicate
 -- warning: the company name for a company, otherwise the person's name, and
@@ -232,11 +246,12 @@ $$;
 grant execute on function public.customer_display_name(text, text, text, text) to authenticated;
 
 -- The duplicate warning on the New customer form. Runs as the table owner so
--- it finds the customer whoever created them, and says whether the caller
--- may open that customer. It gives back only the name and office, never the
--- customer's own details. A customer's other phone number counts too.
+-- it finds the customer whoever created them, archived ones included, and
+-- says whether the caller may open that customer. It gives back only the
+-- name and office, never the customer's own details, and the id only when
+-- the caller may open them. A customer's other phone number counts too.
 create function public.customers_with_phone(phone text)
-returns table (customer_id uuid, display_name text, office_name text, can_open boolean)
+returns table (customer_id uuid, display_name text, office_name text, can_open boolean, archived boolean)
 language plpgsql
 stable
 security definer
@@ -250,15 +265,16 @@ begin
   end if;
 
   return query
-    select c.id,
+    select case when opens.can_open and c.archived_at is null then c.id end,
            public.customer_display_name(c.customer_type, c.first_name, c.last_name, c.company_name),
            o.name,
-           public.can_see_customer(c.id, c.office_id, c.created_by)
+           opens.can_open and c.archived_at is null,
+           c.archived_at is not null
       from public.customers c
       join public.offices o on o.id = c.office_id
-     where c.archived_at is null
-       and (public.phone_key(c.phone_digits) = key or public.phone_key(c.phone_alt) = key)
-     order by c.created_at;
+      cross join lateral (select public.can_see_customer(c.id, c.office_id, c.created_by) as can_open) as opens
+     where public.phone_key(c.phone_digits) = key or public.phone_key(c.phone_alt) = key
+     order by c.archived_at is not null, c.created_at;
 end;
 $$;
 
