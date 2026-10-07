@@ -1922,3 +1922,28 @@ reset role;
 select tests.check(
   (select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-00000000000f') = 0,
   'a second password reset, while the first temporary password is still in use, signs the person out everywhere');
+
+-- ---------------------------------------------------------------------------
+-- The office rule holds in the database itself, not only on the People
+-- screen. The check runs when the transaction commits, so these run inside
+-- one with the checks made immediate.
+-- ---------------------------------------------------------------------------
+
+begin;
+set constraints all immediate;
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select tests.fails_saying(
+  $$delete from public.profile_offices where profile_id = '00000000-0000-0000-0000-00000000000b'$$,
+  '23514', 'Pick at least one office.',
+  'an Admin cannot take the last office away from someone who can sign in, even directly');
+select tests.fails_saying(
+  $$update public.profiles set is_active = true where id = '00000000-0000-0000-0000-00000000000d'$$,
+  '23514', 'Pick at least one office.',
+  'someone with no office cannot be switched on directly');
+reset role;
+commit;
+select tests.check(
+  (select count(*) from public.profile_offices where profile_id = '00000000-0000-0000-0000-00000000000b') = 1
+  and not (select is_active from public.profiles where id = '00000000-0000-0000-0000-00000000000d'),
+  'the refused office changes left both people as they were');

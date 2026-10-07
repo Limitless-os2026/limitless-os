@@ -273,7 +273,7 @@ The owner's answers to the questions in pull request #3.
 
 - **Office details.** Project managers can edit their own offices' phone and address (permission `edit_office_details`, limited to their offices). Adding or removing states and offices, renaming them, and changing their time zone or state stay Admin-only (`manage_settings`). The database enforces this now; there is no screen for office details yet, for anyone. It arrives with settings in a later step.
 - **Audit log by office.** Project managers see audit entries for their own offices only: changes to people in their offices, to office membership in their offices, and to customers (and later jobs) in their offices. Company-wide entries such as roles and permissions are for company-scope roles. Admins see everything.
-- **Offices required.** Every person belongs to at least one office, including company-wide roles such as Accountant. Adding a person and editing a person both require it. A switched-off person may be left with no office.
+- **Offices required.** Every person belongs to at least one office, including company-wide roles such as Accountant. Adding a person and editing a person both require it, and the database refuses to take the last office away from anyone who can sign in, or to switch on someone with no office, however the change is made. A switched-off person may be left with no office.
 - **Sign out everywhere.** A password reset signs the person out on every device: their current sessions end and they sign in again with the temporary password. Switching someone off does the same. The database does this when the profile changes, so it holds whichever screen or function made the change.
 
 ### Decisions from step 3

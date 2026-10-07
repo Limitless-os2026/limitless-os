@@ -237,6 +237,41 @@ begin
 end;
 $$;
 
+-- The same rule, held by the database itself however a change is made: an
+-- active person cannot lose their last office, and a person with no office
+-- cannot be switched on. Checked when the transaction commits, so the
+-- People screen can still take someone out of one office and put them in
+-- another, or switch them off and clear their offices, in one go.
+create function public.keep_an_office()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  person uuid;
+begin
+  if tg_table_name = 'profiles' then
+    person := new.id;
+  else
+    person := old.profile_id;
+  end if;
+
+  if exists (select 1 from public.profiles p where p.id = person and p.is_active)
+     and not exists (select 1 from public.profile_offices po where po.profile_id = person) then
+    raise exception 'Pick at least one office.' using errcode = 'check_violation';
+  end if;
+  return null;
+end;
+$$;
+
+revoke execute on function public.keep_an_office() from public, anon, authenticated;
+
+create constraint trigger keep_an_office after delete on public.profile_offices
+  deferrable initially deferred for each row execute function public.keep_an_office();
+create constraint trigger keep_an_office after update of is_active on public.profiles
+  deferrable initially deferred for each row execute function public.keep_an_office();
+
 -- ---------------------------------------------------------------------------
 -- Records keep their id. Every link, and every audit entry, points at it.
 -- ---------------------------------------------------------------------------
