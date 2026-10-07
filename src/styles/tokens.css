@@ -1,0 +1,44 @@
+/* Design tokens from docs/spec.md section 10. Use these variables, never raw colors. */
+:root {
+  --brand-green: #2a5120;
+  --sidebar-green: #183313;
+  --sidebar-text: #d5e3d0;
+  --sidebar-outline: #4e7a43;
+
+  --ground: #f2f4ef;
+  --surface: #ffffff;
+  --tint: #eef1ea;
+
+  --line: #d9ded4;
+  --line-row: #e6eae2;
+  --line-control: #c9d1c3;
+
+  --ink: #1b241a;
+  --ink-muted: #566153;
+  --ink-muted-on-tint: #4a5547;
+
+  --next-step: #f5c400;
+  --next-step-soft: #fff6cc;
+
+  --alert: #b42318;
+  --alert-soft: #fbe9e7;
+  --alert-soft-text: #8c1c13;
+
+  --emergency: #1f5fa8;
+
+  --board-retail: #2f6fb7;
+  --board-insurance: #d07a1f;
+  --board-emergency-tarps: #b42318;
+  --board-servpro-recon: #7a4b2a;
+  --board-warranty-claims: #6b7068;
+
+  --font-text: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
+
+  --radius: 6px;
+  --radius-panel: 8px;
+  --touch: 44px;
+
+  --sidebar-width: 220px;
+  --topbar-height: 56px;
+}

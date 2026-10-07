@@ -1,0 +1,2 @@
+-- Seed data for local development. Made-up names and addresses only.
+-- Filled in by Phase 1, step 2 (company structure, roles and permissions).
