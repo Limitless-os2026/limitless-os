@@ -13,6 +13,7 @@ describe('Office home sample data', () => {
       ['Dispatch not accepted', 1],
     ])
     expect(data.attention[0]?.detail).toBe('The oldest has waited 63 days')
+    expect(data.attention[4]?.detail).toBe('Commission drops to the 6% tier')
     expect(data.attention.map((row) => row.late)).toEqual([true, true, false, false, true, true])
 
     expect(data.today.map((entry) => entry.address)).toEqual([

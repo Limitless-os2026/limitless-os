@@ -306,6 +306,5 @@ Carry these in pull requests when they become relevant. Do not resolve them by g
 - Does the 6% SERVPRO cap apply to every non-emergency job credited to SERVPRO, on any board? Assumed yes.
 - Which margin sets the tier: margin before commission? Assumed yes.
 - What happens when a rep has already been paid more than the final earned amount?
-- Project managers: everything in their own offices (assumed), or every office?
 - Default lead credit for Canvassing, Billboards, Facebook and Google, as proposed in section 7.
 - How many days in each stage count as late. Until the owner sets them, use 14 days and say so.

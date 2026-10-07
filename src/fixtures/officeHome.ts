@@ -83,7 +83,7 @@ export const attentionItems: AttentionItemData[] = [
   {
     id: 'sold-under-margin',
     title: 'Job sold under 35% margin',
-    detail: () => 'Pays no commission unless the margin recovers',
+    detail: () => 'Commission drops to the 6% tier',
     to: '/boards',
     parts: {
       PA: { count: 1, measure: { kind: 'margin', value: 32 }, late: true },
