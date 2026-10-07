@@ -237,8 +237,13 @@ export interface FakeBackend extends Backend {
 
 let nextTemporary = 1
 
+/** Commas and runs of spaces do not matter, as in the database's search. */
+function plain(text: string): string {
+  return text.replace(/[,\s]+/g, ' ').trim().toLowerCase()
+}
+
 function matches(text: string | null | undefined, query: string): boolean {
-  return Boolean(text && text.toLowerCase().includes(query.toLowerCase()))
+  return Boolean(text && plain(text).includes(plain(query)))
 }
 
 export function fakeBackend(options: { signedInAs?: string | null; locations?: Locations } = {}): FakeBackend {
@@ -390,7 +395,7 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
       const key = phoneKey(phone)
       if (key.length < 7) return []
       return backend.customers
-        .filter((customer) => phoneKey(customer.phone) === key)
+        .filter((customer) => phoneKey(customer.phone) === key || (customer.phoneAlt !== null && phoneKey(customer.phoneAlt) === key))
         .map(
           (customer): PhoneMatch => ({
             customerId: customer.id,
@@ -477,7 +482,8 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
       backend.searches.push(query)
       const q = query.trim()
       if (!q) return []
-      const digits = phoneKey(q)
+      // Only a query with no letters is also a phone number, as in the database.
+      const digits = /[a-z]/i.test(q) ? '' : phoneKey(q)
       const customers: SearchResult[] = []
       for (const customer of backend.customers) {
         const properties = backend.properties.filter((property) => property.customerId === customer.id)
@@ -485,7 +491,8 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
           matches(customerName(customer), q) ||
           matches(customer.email, q) ||
           (digits.length >= 3 && phoneKey(customer.phone).includes(digits)) ||
-          properties.some((property) => matches(`${property.addressLine1} ${property.city ?? ''}`, q))
+          (digits.length >= 3 && customer.phoneAlt !== null && phoneKey(customer.phoneAlt).includes(digits)) ||
+          properties.some((property) => matches(`${property.addressLine1} ${property.addressLine2 ?? ''} ${property.city ?? ''} ${property.state ?? ''} ${property.zip ?? ''}`, q))
         if (hit) {
           const first = properties[0]
           customers.push({

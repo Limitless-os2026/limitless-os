@@ -234,7 +234,7 @@ grant execute on function public.customer_display_name(text, text, text, text) t
 -- The duplicate warning on the New customer form. Runs as the table owner so
 -- it finds the customer whoever created them, and says whether the caller
 -- may open that customer. It gives back only the name and office, never the
--- customer's own details.
+-- customer's own details. A customer's other phone number counts too.
 create function public.customers_with_phone(phone text)
 returns table (customer_id uuid, display_name text, office_name text, can_open boolean)
 language plpgsql
@@ -257,7 +257,7 @@ begin
       from public.customers c
       join public.offices o on o.id = c.office_id
      where c.archived_at is null
-       and public.phone_key(c.phone_digits) = key
+       and (public.phone_key(c.phone_digits) = key or public.phone_key(c.phone_alt) = key)
      order by c.created_at;
 end;
 $$;
@@ -329,6 +329,11 @@ grant execute on function public.add_customer(text, text, text, text, text, text
 -- The one search box: customer name, phone, email and property address, and
 -- organization and contact names. Runs as the caller, so each person finds
 -- only what they may see. Up to 20 matches of each kind.
+--
+-- Commas and extra spaces in the query do not matter, so an address can be
+-- typed the way the app shows it. A query with no letters in it is treated
+-- as a phone number as well, so a house number does not drag in every
+-- customer whose phone contains the same digits.
 -- ---------------------------------------------------------------------------
 
 create function public.search_records(query text)
@@ -339,17 +344,19 @@ security invoker
 set search_path = ''
 as $$
 declare
-  q text := btrim(coalesce(query, ''));
+  q text := btrim(regexp_replace(coalesce(query, ''), '[,\s]+', ' ', 'g'));
   pattern text;
-  digits text;
+  digits text := '';
 begin
   if q = '' then
     return;
   end if;
   pattern := '%' || replace(replace(replace(q, '\', '\\'), '%', '\%'), '_', '\_') || '%';
-  digits := regexp_replace(q, '\D', '', 'g');
-  if length(digits) = 11 and left(digits, 1) = '1' then
-    digits := substr(digits, 2);
+  if q !~ '[[:alpha:]]' then
+    digits := regexp_replace(q, '\D', '', 'g');
+    if length(digits) = 11 and left(digits, 1) = '1' then
+      digits := substr(digits, 2);
+    end if;
   end if;
 
   return query
@@ -369,10 +376,11 @@ begin
          or c.company_name ilike pattern
          or c.email ilike pattern
          or (length(digits) >= 3 and c.phone_digits like '%' || digits || '%')
+         or (length(digits) >= 3 and regexp_replace(coalesce(c.phone_alt, ''), '\D', '', 'g') like '%' || digits || '%')
          or exists (
            select 1 from public.properties p
             where p.customer_id = c.id and p.archived_at is null
-              and concat_ws(' ', p.address_line1, p.address_line2, p.city, p.state, p.zip) ilike pattern
+              and regexp_replace(concat_ws(' ', p.address_line1, p.address_line2, p.city, p.state, p.zip), '[,\s]+', ' ', 'g') ilike pattern
          )
        )
      order by 3

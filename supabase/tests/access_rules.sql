@@ -1791,3 +1791,28 @@ select public.update_person(
   array(select id from public.offices where name = 'Reading'),
   (select id from public.offices where name = 'Reading'), true);
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Search and the duplicate warning, continued: addresses typed with commas,
+-- house numbers that look like phone digits, and other phone numbers.
+-- ---------------------------------------------------------------------------
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+update public.customers set phone_alt = '484-555-0199' where first_name = 'Dana';
+select tests.check(
+  exists (select 1 from public.search_records('412 Birchwood Lane, Reading, PA 19601') where kind = 'customer' and title = 'Dana Whitfield'),
+  'an address typed the way the app shows it, commas and all, finds the customer');
+select tests.check(
+  exists (select 1 from public.search_records('birchwood   lane') where kind = 'customer' and title = 'Dana Whitfield'),
+  'extra spaces in a search do not matter');
+select tests.check(
+  not exists (select 1 from public.search_records('412 Birchwood') where kind = 'customer' and title <> 'Dana Whitfield'),
+  'a house number in an address search does not match phone numbers with the same digits');
+select tests.check(
+  exists (select 1 from public.search_records('(484) 555-0199') where kind = 'customer' and title = 'Dana Whitfield'),
+  'a customer is found by their other phone number');
+select tests.check(
+  (select display_name from public.customers_with_phone('1-484-555-0199')) = 'Dana Whitfield',
+  'the duplicate warning also knows a customer''s other phone number');
+reset role;
