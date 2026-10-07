@@ -2,7 +2,7 @@
 // to Supabase; the tests hand the app a stand-in with the same shape.
 
 import type { Locations } from './locations'
-import type { Person, PersonChange, Role, SignedInPerson } from './people'
+import type { MyDetails, NewPerson, Person, PersonChange, Role, SignedInPerson } from './people'
 
 export interface SessionUser {
   id: string
@@ -23,6 +23,20 @@ export interface Backend {
   loadPeople(): Promise<Person[]>
   loadRoles(): Promise<Role[]>
   updatePerson(change: PersonChange): Promise<void>
+
+  /** Admins: makes the person's sign-in with a temporary password, returned once. */
+  addPerson(person: NewPerson): Promise<{ personId: string; temporaryPassword: string }>
+  /** Admins: gives the person a new temporary password, returned once. */
+  resetPassword(personId: string): Promise<{ temporaryPassword: string }>
+
+  /**
+   * Sets the signed-in person's own password. The current password is
+   * checked first when given; it is left out only straight after signing in
+   * with a temporary password.
+   */
+  changeMyPassword(newPassword: string, currentPassword?: string): Promise<void>
+  /** The signed-in person's own name and phone. */
+  updateMyDetails(details: MyDetails): Promise<void>
 }
 
 /** A problem worth telling the person about, in plain words. */

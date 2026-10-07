@@ -264,3 +264,186 @@ describe('People', () => {
     expect(backend.updates[0]?.isActive).toBe(false)
   })
 })
+
+describe('adding people', () => {
+  it('adds a person and shows their temporary password once', async () => {
+    const user = userEvent.setup()
+    const { backend } = renderApp('/people')
+
+    await user.click(await screen.findByRole('link', { name: 'Add person' }))
+    await user.type(await screen.findByLabelText('First name'), 'Jordan')
+    await user.type(screen.getByLabelText('Last name'), 'Roofer')
+    await user.type(screen.getByLabelText('Email'), 'Jordan@Example.com')
+    await user.selectOptions(screen.getByLabelText('Role'), 'Sales')
+
+    // Everyone added belongs to an office.
+    await user.click(screen.getByRole('button', { name: 'Add person' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Pick at least one office.')
+    expect(backend.added).toHaveLength(0)
+
+    await user.click(screen.getByLabelText('Reading, PA'))
+    await user.click(screen.getByRole('button', { name: 'Add person' }))
+
+    const shown = await screen.findByRole('region', { name: 'Temporary password' })
+    expect(shown).toHaveTextContent('Jordan Roofer')
+    expect(shown).toHaveTextContent(/Temp-\d+-Pass/)
+    expect(shown).toHaveTextContent('This is the only time it shows')
+    expect(backend.added).toEqual([
+      {
+        email: 'jordan@example.com',
+        firstName: 'Jordan',
+        lastName: 'Roofer',
+        roleId: 'role-sales',
+        officeIds: ['office-reading'],
+        primaryOfficeId: 'office-reading',
+      },
+    ])
+
+    await user.click(screen.getByRole('link', { name: 'Done' }))
+    const list = await screen.findByRole('region', { name: 'Everyone who can sign in' })
+    expect(within(list).getByRole('link', { name: /Jordan Roofer/ })).toHaveTextContent('Reading, PA')
+  })
+
+  it('says so when the email is already in use', async () => {
+    const user = userEvent.setup()
+    renderApp('/people/new')
+
+    await user.type(await screen.findByLabelText('First name'), 'Avery')
+    await user.type(screen.getByLabelText('Email'), 'avery@example.com')
+    await user.selectOptions(screen.getByLabelText('Role'), 'Sales')
+    await user.click(screen.getByLabelText('Reading, PA'))
+    await user.click(screen.getByRole('button', { name: 'Add person' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Someone with that email can already sign in.')
+  })
+
+  it('is only for Admins', async () => {
+    renderApp('/people/new', fakeBackend({ signedInAs: 'user-sales' }))
+    expect(await screen.findByText('Only an Admin can open this screen')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
+  })
+
+  it('resets a password after asking once more', async () => {
+    const user = userEvent.setup()
+    const { backend } = renderApp('/people/user-sales')
+
+    await user.click(await screen.findByRole('button', { name: 'Reset password' }))
+    expect(screen.getByText(/Their current password stops working/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Yes, reset password' }))
+
+    const shown = await screen.findByRole('region', { name: 'Temporary password' })
+    expect(shown).toHaveTextContent(backend.passwords.get('user-sales') ?? 'missing')
+    expect(backend.temporary.has('user-sales')).toBe(true)
+  })
+})
+
+describe('first sign-in with a temporary password', () => {
+  it('asks for a new password before anything else', async () => {
+    const user = userEvent.setup()
+    const backend = fakeBackend({ signedInAs: null })
+    const { temporaryPassword } = await backend.resetPassword('user-sales')
+    renderApp('/customers', backend)
+
+    await user.type(await screen.findByLabelText('Email'), 'new.rep@example.com')
+    await user.type(screen.getByLabelText('Password'), temporaryPassword)
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Choose your password' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('New password'), 'short')
+    await user.type(screen.getByLabelText('New password again'), 'short')
+    await user.click(screen.getByRole('button', { name: 'Save my password' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Use at least 10 characters.')
+
+    await user.clear(screen.getByLabelText('New password'))
+    await user.clear(screen.getByLabelText('New password again'))
+    await user.type(screen.getByLabelText('New password'), 'my own long password')
+    await user.type(screen.getByLabelText('New password again'), 'my own long passwrod')
+    await user.click(screen.getByRole('button', { name: 'Save my password' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('The two passwords do not match.')
+
+    await user.clear(screen.getByLabelText('New password again'))
+    await user.type(screen.getByLabelText('New password again'), 'my own long password')
+    await user.click(screen.getByRole('button', { name: 'Save my password' }))
+
+    await shell()
+    expect(backend.passwords.get('user-sales')).toBe('my own long password')
+    expect(backend.temporary.has('user-sales')).toBe(false)
+  })
+})
+
+describe('My details', () => {
+  it('lets anyone change their own name and phone', async () => {
+    const user = userEvent.setup()
+    const { backend } = renderApp('/', fakeBackend({ signedInAs: 'user-sales' }))
+    await user.click(within(await shell()).getByRole('link', { name: 'My details' }))
+
+    await user.type(await screen.findByLabelText('First name'), 'Riley')
+    await user.type(screen.getByLabelText('Last name'), 'Rep')
+    await user.type(screen.getByLabelText('Phone'), '555-0199')
+    await user.click(screen.getByRole('button', { name: 'Save my details' }))
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+    expect(backend.myDetails).toEqual([{ firstName: 'Riley', lastName: 'Rep', phone: '555-0199' }])
+    expect(within(screen.getByRole('navigation', { name: 'Main' })).getByText('Riley Rep')).toBeInTheDocument()
+    // Role and offices are not on this screen.
+    expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
+  })
+
+  it('changes their password after checking the current one', async () => {
+    const user = userEvent.setup()
+    const { backend } = renderApp('/me', fakeBackend({ signedInAs: 'user-sales' }))
+    const form = await screen.findByRole('form', { name: 'Change password' })
+
+    await user.type(within(form).getByLabelText('Current password'), 'not it')
+    await user.type(within(form).getByLabelText('New password'), 'a brand new password')
+    await user.type(within(form).getByLabelText('New password again'), 'a brand new password')
+    await user.click(within(form).getByRole('button', { name: 'Change password' }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Your current password is not right.')
+
+    await user.clear(within(form).getByLabelText('Current password'))
+    await user.type(within(form).getByLabelText('Current password'), PASSWORD)
+    await user.click(within(form).getByRole('button', { name: 'Change password' }))
+    expect(await within(form).findByText('Your password is changed.')).toBeInTheDocument()
+    expect(backend.passwords.get('user-sales')).toBe('a brand new password')
+  })
+})
+
+describe('location filter with several offices in a state', () => {
+  it('opens the state to choose one office, and remembers it', async () => {
+    const user = userEvent.setup()
+    const backend = fakeBackend({ signedInAs: 'user-admin' })
+    backend.locations.offices.push({
+      id: 'office-lancaster',
+      stateId: 'state-pa',
+      name: 'Lancaster',
+      timeZone: 'America/New_York',
+      isActive: true,
+    })
+    renderApp('/', backend)
+
+    const filter = await screen.findByRole('group', { name: 'Location' })
+    const pennsylvania = await within(filter).findByRole('button', { name: 'Pennsylvania' })
+    expect(pennsylvania).toHaveAttribute('aria-haspopup', 'menu')
+    // Utah has one office, so it is a plain choice.
+    expect(within(filter).getByRole('button', { name: 'Utah' })).not.toHaveAttribute('aria-haspopup')
+
+    await user.click(pennsylvania)
+    const menu = screen.getByRole('menu', { name: 'Pennsylvania' })
+    expect(within(menu).getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
+      'All of Pennsylvania',
+      'Lancaster',
+      'Reading',
+    ])
+    await user.click(within(menu).getByRole('menuitemradio', { name: 'Lancaster' }))
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(within(filter).getByRole('button', { name: 'Pennsylvania: Lancaster' })).toHaveAttribute('aria-pressed', 'true')
+    expect(window.localStorage.getItem('limitless-os.location')).toBe('PA/office-lancaster')
+
+    await user.click(within(filter).getByRole('button', { name: 'Pennsylvania: Lancaster' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'All of Pennsylvania' }))
+    expect(within(filter).getByRole('button', { name: 'Pennsylvania' })).toHaveAttribute('aria-pressed', 'true')
+  })
+})

@@ -20,6 +20,7 @@ export type SessionState =
   | { status: 'no-profile'; user: SessionUser }
   | { status: 'profile-error'; user: SessionUser; retry: () => void }
   | { status: 'switched-off'; user: SessionUser; person: SignedInPerson }
+  | { status: 'needs-password'; user: SessionUser; person: SignedInPerson }
   | { status: 'signed-in'; user: SessionUser; person: SignedInPerson }
 
 const SessionContext = createContext<SessionState | null>(null)
@@ -67,6 +68,7 @@ export function SessionProvider({ backend, children }: { backend: Backend; child
     const person = profile.data
     if (!person) return profile.isPending ? { status: 'loading-profile', user } : { status: 'no-profile', user }
     if (!person.isActive) return { status: 'switched-off', user, person }
+    if (person.mustChangePassword) return { status: 'needs-password', user, person }
     return { status: 'signed-in', user, person }
   }, [user, profile])
 

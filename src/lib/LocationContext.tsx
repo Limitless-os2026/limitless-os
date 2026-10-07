@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ALL_LOCATIONS, locationOptions, type LocationFilter, type LocationOption, type Locations } from './locations'
+import {
+  ALL_LOCATIONS,
+  isLocationChoice,
+  locationOptions,
+  type LocationFilter,
+  type LocationOption,
+  type Locations,
+} from './locations'
 import { useBackend } from './SessionContext'
 
 // The chosen location follows the person from screen to screen and is
@@ -37,8 +44,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const options = useMemo(() => (data ? locationOptions(data) : [{ value: ALL_LOCATIONS, label: 'All locations' }]), [data])
 
   // Until the states arrive, trust the remembered choice. After that, a
-  // state that is gone or switched off falls back to all locations.
-  const location = !data || options.some((option) => option.value === stored) ? stored : ALL_LOCATIONS
+  // state or office that is gone or switched off falls back to all locations.
+  const location = !data || isLocationChoice(options, stored) ? stored : ALL_LOCATIONS
 
   const setLocation = useCallback((next: LocationFilter) => {
     setStored(next)

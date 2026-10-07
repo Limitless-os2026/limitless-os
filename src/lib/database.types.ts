@@ -67,6 +67,7 @@ export type ProfilesRow = StandardColumns & {
   role_id: string
   primary_office_id: string | null
   is_active: boolean
+  must_change_password: boolean
 }
 
 export type ProfileOfficesRow = StandardColumns & {
@@ -109,6 +110,13 @@ export type Database = {
     Functions: {
       has_permission: { Args: { permission: string }; Returns: boolean }
       is_active_staff: { Args: Record<PropertyKey, never>; Returns: boolean }
+      in_my_offices: { Args: { office: string }; Returns: boolean }
+      can_manage_team: { Args: { team: string }; Returns: boolean }
+      require_password_change: { Args: { person_id: string }; Returns: undefined }
+      update_my_details: {
+        Args: { first_name: string; last_name: string; phone: string }
+        Returns: undefined
+      }
       update_person: {
         Args: {
           person_id: string

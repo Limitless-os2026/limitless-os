@@ -240,7 +240,14 @@ select tests.sign_in('00000000-0000-0000-0000-00000000000b');
 select tests.check(tests.count_rows('select * from public.states') = 2, 'Sales can read states');
 select tests.check(tests.count_rows('select * from public.offices') = 3, 'Sales can read offices');
 select tests.check(tests.count_rows('select * from public.roles') = 4, 'Sales can read roles');
-select tests.check(tests.count_rows('select * from public.profiles') = 4, 'Sales can read the staff list');
+select tests.check(tests.count_rows('select * from public.profiles') = 3,
+  'Sales can read the staff list of active colleagues, without the switched-off person');
+select tests.check(
+  tests.count_rows($$select * from public.profiles where id = '00000000-0000-0000-0000-00000000000d'$$) = 0,
+  'Sales cannot see a switched-off person');
+select tests.check(
+  tests.count_rows($$select * from public.profile_offices where profile_id = '00000000-0000-0000-0000-00000000000c'$$) = 1,
+  'Sales can see which offices a colleague is in');
 select tests.check(tests.count_rows('select * from public.audit_log') = 0, 'Sales cannot read the audit trail');
 select tests.check(not public.has_permission('manage_users'), 'Sales cannot manage people');
 
@@ -333,3 +340,181 @@ select tests.check(
      where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
   ),
   'row level security is on for every table');
+
+-- ---------------------------------------------------------------------------
+-- Decisions from step 2: starting permissions, auditing roles
+-- ---------------------------------------------------------------------------
+
+select tests.check(
+  (select string_agg(rp.permission_key, ',' order by rp.permission_key)
+     from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'admin')
+  = 'edit_sales_credits,manage_permissions,manage_settings,manage_teams,manage_users,reassign_jobs,view_audit_log,view_commissions,view_margins,view_partner_reports',
+  'Admin has every permission');
+select tests.check(
+  (select string_agg(rp.permission_key, ',' order by rp.permission_key)
+     from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'project_manager')
+  = 'edit_sales_credits,manage_teams,reassign_jobs,view_audit_log,view_commissions,view_margins,view_partner_reports',
+  'Project manager has everything except managing people, roles, permissions and company settings');
+select tests.check(
+  (select string_agg(rp.permission_key, ',' order by rp.permission_key)
+     from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'accountant')
+  = 'view_commissions,view_margins,view_partner_reports',
+  'Accountant has view_margins, view_commissions and view_partner_reports');
+select tests.check(
+  not exists (select 1 from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'sales'),
+  'Sales has none of the special permissions');
+select tests.check(
+  exists (select 1 from public.audit_log where table_name = 'role_permissions' and action = 'delete'
+             and changes -> 'permission_key' ->> 'old' = 'view_commissions'),
+  'taking a permission away from a role is in the audit trail');
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+update public.roles set name = 'Salesperson' where key = 'sales';
+select tests.check(
+  exists (select 1 from public.audit_log where table_name = 'roles' and action = 'update'
+             and changed_by = '00000000-0000-0000-0000-00000000000c'
+             and changes -> 'name' ->> 'new' = 'Salesperson'),
+  'renaming a role is in the audit trail, with who did it');
+update public.roles set name = 'Sales' where key = 'sales';
+select tests.check(
+  tests.count_rows($$select * from public.profiles where id = '00000000-0000-0000-0000-00000000000d'$$) = 1,
+  'the Admin still sees people who are switched off');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Teams: Admins manage every team, Project managers the teams in their offices
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000000e', 'office.pm@example.com'),
+  ('00000000-0000-0000-0000-00000000000f', 'new.hire@example.com');
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.update_person(
+  '00000000-0000-0000-0000-00000000000e', 'Robin', 'Reading',
+  (select id from public.roles where key = 'project_manager'),
+  array(select id from public.offices where name = 'Reading'),
+  (select id from public.offices where name = 'Reading'), true);
+insert into public.teams (office_id, name, team_type)
+  values ((select id from public.offices where name = 'American Fork'), 'Utah crew', 'ems_crew');
+select tests.check(true, 'an Admin can add a team in any office');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000e');
+insert into public.teams (office_id, name, team_type)
+  values ((select id from public.offices where name = 'Reading'), 'Reading roofing crew', 'production');
+select tests.check(true, 'a Project manager can add a team in their own office');
+select tests.fails(
+  $$insert into public.teams (office_id, name, team_type)
+    values ((select id from public.offices where name = 'American Fork'), 'Not mine', 'sales')$$,
+  '42501', 'a Project manager cannot add a team in another office');
+select tests.changes_nothing(
+  $$update public.teams set name = 'Renamed' where name = 'Utah crew'$$,
+  'a Project manager cannot change a team in another office');
+select tests.fails(
+  $$update public.teams set office_id = (select id from public.offices where name = 'American Fork')
+     where name = 'Reading roofing crew'$$,
+  '42501', 'a Project manager cannot move a team into another office');
+insert into public.team_members (team_id, profile_id, is_lead)
+  values ((select id from public.teams where name = 'Reading roofing crew'), '00000000-0000-0000-0000-00000000000b', true);
+select tests.check(true, 'a Project manager can add people to a team in their office');
+select tests.fails(
+  $$insert into public.team_members (team_id, profile_id)
+    values ((select id from public.teams where name = 'Utah crew'), '00000000-0000-0000-0000-00000000000b')$$,
+  '42501', 'a Project manager cannot add people to a team in another office');
+select tests.changes_nothing(
+  $$update public.offices set name = 'Renamed'$$,
+  'a Project manager cannot change offices');
+select tests.check(tests.count_rows('select * from public.audit_log') > 0, 'a Project manager can read the audit trail');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000b');
+select tests.fails(
+  $$insert into public.teams (office_id, name, team_type)
+    values ((select id from public.offices where name = 'Reading'), 'Mine', 'sales')$$,
+  '42501', 'Sales cannot add a team');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Temporary passwords
+-- ---------------------------------------------------------------------------
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000b');
+select tests.fails(
+  $$select public.require_password_change('00000000-0000-0000-0000-00000000000f')$$,
+  '42501', 'Sales cannot force a password change');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.require_password_change('00000000-0000-0000-0000-00000000000f');
+reset role;
+
+select tests.check(
+  (select must_change_password from public.profiles where id = '00000000-0000-0000-0000-00000000000f'),
+  'an Admin can mark a password as temporary');
+select tests.check(
+  exists (select 1 from public.audit_log where table_name = 'profiles' and record_id = '00000000-0000-0000-0000-00000000000f'
+             and changed_by = '00000000-0000-0000-0000-00000000000c' and changes ? 'must_change_password'),
+  'issuing a temporary password is in the audit trail, with who did it');
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000f');
+select tests.check(tests.count_rows('select * from public.profiles') = 1, 'on a temporary password, a person sees only their own profile');
+select tests.check(tests.count_rows('select * from public.states') = 0, 'on a temporary password, a person sees nothing else');
+select tests.fails(
+  $$select public.update_my_details('New', 'Hire', '555-0100')$$,
+  '42501', 'on a temporary password, a person cannot change their details');
+select tests.fails(
+  $$update public.profiles set must_change_password = false where id = '00000000-0000-0000-0000-00000000000f'$$,
+  '42501', 'nobody can clear the temporary password flag by hand');
+reset role;
+
+-- The sign-in service saves the person's own password.
+update auth.users set encrypted_password = 'their-own' where id = '00000000-0000-0000-0000-00000000000f';
+select tests.check(
+  not (select must_change_password from public.profiles where id = '00000000-0000-0000-0000-00000000000f'),
+  'choosing a new password clears the temporary flag');
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000f');
+select tests.check(tests.count_rows('select * from public.states') = 2, 'after choosing a password, the person can use the app');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Your own name and phone
+-- ---------------------------------------------------------------------------
+
+set role anon;
+select tests.sign_in(null);
+select tests.fails(
+  $$select public.update_my_details('A', 'B', 'C')$$,
+  '42501', 'signed-out visitors cannot change details');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000b');
+select public.update_my_details(' Samantha ', 'Seller', ' 555-0101 ');
+reset role;
+
+select tests.check(
+  (select first_name = 'Samantha' and phone = '555-0101' and r.key = 'sales'
+     from public.profiles p join public.roles r on r.id = p.role_id
+    where p.id = '00000000-0000-0000-0000-00000000000b'),
+  'a person can change their own name and phone, and nothing else changes');
+select tests.check(
+  exists (select 1 from public.audit_log where table_name = 'profiles' and record_id = '00000000-0000-0000-0000-00000000000b'
+             and changed_by = '00000000-0000-0000-0000-00000000000b' and changes ? 'phone'),
+  'changing your own details is in the audit trail');
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000d');
+select tests.fails(
+  $$select public.update_my_details('Lee', 'Back', null)$$,
+  '42501', 'a switched-off person cannot change their details');
+reset role;

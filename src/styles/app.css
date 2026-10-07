@@ -341,8 +341,68 @@ h2 {
   display: flex;
   border: 1px solid var(--line-control);
   border-radius: var(--radius);
-  overflow: hidden;
   background: var(--surface);
+}
+
+.location-filter > :first-child,
+.location-filter > :first-child > button {
+  border-top-left-radius: calc(var(--radius) - 1px);
+  border-bottom-left-radius: calc(var(--radius) - 1px);
+}
+
+.location-filter > :last-child,
+.location-filter > :last-child > button {
+  border-top-right-radius: calc(var(--radius) - 1px);
+  border-bottom-right-radius: calc(var(--radius) - 1px);
+}
+
+/* A state with several offices: its button opens a short list below it. */
+.location-filter__state {
+  position: relative;
+  display: flex;
+}
+
+.location-filter__state > button {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.location-filter__caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+}
+
+.location-filter__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.location-filter .location-filter__menu button {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: nowrap;
+  border-radius: var(--radius);
+}
+
+.location-filter .location-filter__menu button[aria-checked='true'] {
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .location-filter button {
@@ -404,9 +464,18 @@ h2 {
     width: 100%;
   }
 
-  .location-filter button {
+  .location-filter > button,
+  .location-filter__state {
     flex: 1 1 0;
+  }
+
+  .location-filter button {
     padding: 0 8px;
+  }
+
+  .location-filter > :last-child .location-filter__menu {
+    left: auto;
+    right: 0;
   }
 
   .search-box {
@@ -804,7 +873,12 @@ h2 {
   color: var(--ink);
   font-weight: 600;
   font-size: 18px;
+  text-decoration: none;
   cursor: pointer;
+}
+
+a.button-next:hover {
+  color: var(--ink);
 }
 
 .button-next:disabled,
@@ -980,4 +1054,95 @@ h2 {
   align-items: center;
   min-height: var(--touch);
   font-weight: 600;
+}
+
+/* ---------- Update ready bar ---------- */
+
+.update-bar {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 6px 6px 16px;
+  border-radius: var(--radius);
+  background: var(--sidebar-green);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.update-bar__button {
+  min-height: var(--touch);
+  padding: 0 16px;
+  border: 1px solid var(--sidebar-outline);
+  border-radius: var(--radius);
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-bar__button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* ---------- Passwords and own details ---------- */
+
+.field__hint {
+  margin: -12px 0 0;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.form__title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.temporary-password {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--tint);
+}
+
+.temporary-password p {
+  margin: 0;
+}
+
+.temporary-password__value {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.button-link {
+  min-height: var(--touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-green);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }

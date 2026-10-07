@@ -1,4 +1,13 @@
-import { canManagePeople, displayName, personChangeFrom, type PersonForm, type SignedInPerson } from './people'
+import {
+  canManagePeople,
+  displayName,
+  newPasswordProblem,
+  newPersonFrom,
+  personChangeFrom,
+  type NewPersonForm,
+  type PersonForm,
+  type SignedInPerson,
+} from './people'
 
 const form: PersonForm = {
   firstName: '  Riley ',
@@ -66,7 +75,9 @@ describe('who can manage people', () => {
     firstName: null,
     lastName: null,
     email: null,
+    phone: null,
     isActive: true,
+    mustChangePassword: false,
     role: { id: 'r', key: 'anything', name: 'Anything', scope: 'company' },
     permissions: ['manage_users'],
   }
@@ -79,5 +90,47 @@ describe('who can manage people', () => {
   it('never includes someone who is switched off', () => {
     expect(canManagePeople({ ...person, isActive: false })).toBe(false)
     expect(canManagePeople(null)).toBe(false)
+  })
+})
+
+describe('adding a person', () => {
+  const newPerson: NewPersonForm = {
+    email: ' Jordan@Example.com ',
+    firstName: ' Jordan ',
+    lastName: '',
+    roleId: 'role-sales',
+    officeIds: ['office-a'],
+    primaryOfficeId: null,
+  }
+
+  it('tidies the email and name, and makes a single office the main one', () => {
+    expect(newPersonFrom(newPerson)).toEqual({
+      person: {
+        email: 'jordan@example.com',
+        firstName: 'Jordan',
+        lastName: '',
+        roleId: 'role-sales',
+        officeIds: ['office-a'],
+        primaryOfficeId: 'office-a',
+      },
+    })
+  })
+
+  it('needs an email, a first name, a role and at least one office', () => {
+    expect(newPersonFrom({ ...newPerson, email: 'jordan' })).toEqual({ error: 'Enter a valid email address.' })
+    expect(newPersonFrom({ ...newPerson, firstName: ' ' })).toEqual({ error: 'Enter their first name.' })
+    expect(newPersonFrom({ ...newPerson, roleId: '' })).toEqual({ error: 'Pick a role.' })
+    expect(newPersonFrom({ ...newPerson, officeIds: [] })).toEqual({ error: 'Pick at least one office.' })
+    expect(newPersonFrom({ ...newPerson, officeIds: ['office-a', 'office-b'] })).toEqual({
+      error: 'Pick which of their offices is the main one.',
+    })
+  })
+})
+
+describe('choosing a password', () => {
+  it('needs at least ten characters, typed the same twice', () => {
+    expect(newPasswordProblem('123456789', '123456789')).toBe('Use at least 10 characters.')
+    expect(newPasswordProblem('long enough', 'long enougH')).toBe('The two passwords do not match.')
+    expect(newPasswordProblem('long enough', 'long enough')).toBeNull()
   })
 })
