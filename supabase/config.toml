@@ -48,3 +48,11 @@ secure_password_change = true
 
 [auth.sms]
 enable_signup = false
+
+# Server functions, deployed by the GitHub integration with the migrations.
+# manage-people: an Admin adds a person or resets a password. It checks the
+# caller is an active Admin itself; the sign-in check here is a first gate.
+[functions.manage-people]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/manage-people/index.ts"

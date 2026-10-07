@@ -34,6 +34,9 @@ export const mainNav: readonly ScreenLink[] = [
 /** For Admins only, shown under their name in the sidebar. */
 export const peopleScreen: ScreenLink = { label: 'People', path: '/people' }
 
+/** For everyone, under their name in the sidebar: their own name, phone and password. */
+export const myDetailsScreen: ScreenLink = { label: 'My details', path: '/me' }
+
 export const searchScreen: ScreenLink = {
   label: 'Search',
   path: '/search',

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { mainNav, newEmergency, newJob, peopleScreen } from '../lib/navigation'
+import { mainNav, myDetailsScreen, newEmergency, newJob, peopleScreen } from '../lib/navigation'
 import { canManagePeople, displayName } from '../lib/people'
 import { useBackend, useSignedInPerson } from '../lib/SessionContext'
 import { CloseIcon, MenuIcon, PlusIcon } from './Icons'
@@ -94,8 +94,9 @@ export function AppShell() {
   )
 }
 
-// Who is signed in, at the foot of the sidebar, with sign-out. Admins also
-// get the People screen here, so the eight main links stay as designed.
+// Who is signed in, at the foot of the sidebar, with their own details and
+// sign-out. Admins also get the People screen here, so the eight main links
+// stay as designed.
 function SignedInFooter() {
   const backend = useBackend()
   const me = useSignedInPerson()
@@ -107,6 +108,9 @@ function SignedInFooter() {
         <div className="sidebar__name">{displayName(me)}</div>
         <div className="sidebar__role">{me.role.name}</div>
       </div>
+      <NavLink to={myDetailsScreen.path} className="nav-link">
+        {myDetailsScreen.label}
+      </NavLink>
       {canManagePeople(me) && (
         <NavLink to={peopleScreen.path} className="nav-link">
           {peopleScreen.label}

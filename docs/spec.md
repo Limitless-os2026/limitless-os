@@ -44,6 +44,8 @@ Conventions:
 - TypeScript in strict mode. Generate database types from the schema.
 - React Router for routing. TanStack Query for server data. No UI kit: styles follow the design tokens in section 10 as CSS variables.
 - Fonts are bundled with the app, not loaded from a CDN, so the installed app works with no signal.
+- The installed app keeps a saved copy of itself. When a newer version has been published, every screen, sign-in included, shows a small "Update ready" bar with a Refresh button. The app checks for a new version when it opens and each time it comes back to the foreground. Nobody stays on an old saved copy without knowing.
+- Anything that needs the Supabase secret key, such as creating sign-in accounts, runs in a Supabase Edge Function in `supabase/functions/`, declared in `supabase/config.toml` so the GitHub integration deploys it. The secret key never reaches the browser.
 - Build command `npm run build`, output folder `dist`.
 - Tests cover business rules: job numbers, permissions, stage moves, and later commission math.
 
@@ -130,7 +132,7 @@ Seed rows: admin (company), project_manager (office), sales (own), accountant (c
 
 **role_permissions**: `role_id`, `permission_key text`. One row for each thing a role may do, such as view_margins, edit_sales_credits, reassign_jobs, view_commissions, manage_users, view_partner_reports, manage_permissions.
 
-**profiles**: one row per person who logs in. `id` equals the Supabase auth user id. `first_name text`, `last_name text`, `email text unique`, `phone text`, `role_id`, `primary_office_id` (offices), `is_active boolean`.
+**profiles**: one row per person who logs in. `id` equals the Supabase auth user id. `first_name text`, `last_name text`, `email text unique`, `phone text`, `role_id`, `primary_office_id` (offices), `is_active boolean`, `must_change_password boolean` (true while the person is on a temporary password from an Admin; the database clears it when they choose their own).
 
 **profile_offices**: `profile_id`, `office_id`. One row per person per office. Unique on the pair.
 
@@ -216,7 +218,7 @@ Salespeople are not a column on the job. See the next table.
 
 **activities**: the timeline. Notes live here. `activity_type text` (note, call, email, text, stage_change, task, appointment, photo, document, payment, system), `body text`, `details jsonb`, `job_id`, `customer_id`, `contact_id`, `organization_id` (optional), `is_internal boolean`, `is_pinned boolean`, `occurred_at timestamptz`.
 
-**audit_log**: `table_name text`, `record_id uuid`, `action text` (insert, update, delete), `changes jsonb` (previous and new value per changed field), `changed_by` (profiles), `changed_at timestamptz`. Written by triggers. No role can edit it. Phase 1 audits jobs, job_sales_credits, customers and profiles.
+**audit_log**: `table_name text`, `record_id uuid`, `action text` (insert, update, delete), `changes jsonb` (previous and new value per changed field), `changed_by` (profiles), `changed_at timestamptz`. Written by triggers. No role can edit it. Phase 1 audits jobs, job_sales_credits, customers and profiles, plus profile_offices, roles and role_permissions (decided after step 2).
 
 ### Reserved for later phases
 
@@ -243,6 +245,27 @@ Visibility is enforced in the database with row level security, so it holds on e
 - Organizations and contacts are visible to all staff. Anyone can add a contact. Changing an organization's structure is limited to Project managers and Admins.
 - Partner revenue and profit reports are a separate permission, off for Sales.
 - A state scope exists for a future regional manager. It covers every office in the states that person belongs to.
+
+### Decisions from step 2
+
+The owner's answers to the questions in pull request #2.
+
+- **Adding people.** Admins add people from the People screen: name, email, role, offices and main office. The app creates the sign-in with a temporary password that it generates and shows once to the Admin. No email is sent. On first sign-in the person must choose their own password before they can do anything else. Admins can also reset a password, which issues a new temporary password the same way. This runs in the `manage-people` Edge Function, which first confirms the caller is an active Admin.
+- **Own details.** Everyone can change their own password, and edit their own name and phone. Nothing else about themselves.
+- **Staff list.** Every signed-in person can see the name, role, offices, phone and email of active colleagues. Only Admins can open People or change anyone, and only Admins see people who have been switched off.
+- **Teams.** Admins manage all teams. Project managers manage the teams in their own offices (permission `manage_teams`).
+- **Starting permissions.**
+
+  | Role | Permissions |
+  | --- | --- |
+  | Admin | Everything: manage_users, manage_permissions, manage_settings, manage_teams, view_audit_log, view_margins, view_commissions, edit_sales_credits, reassign_jobs, view_partner_reports |
+  | Project manager | Everything except managing people, roles and permissions: manage_teams, view_audit_log, view_margins, view_commissions, edit_sales_credits, reassign_jobs, view_partner_reports. Scope still limits these to their offices |
+  | Accountant | view_margins, view_commissions, view_partner_reports |
+  | Sales | None of the special permissions. Their own commission comes from their "own" scope in Phase 3 |
+
+  Open: whether Project managers should also get manage_settings (adding and changing states and offices). It is company-wide, so it stays with Admins until the owner says otherwise.
+- **Location filter.** Stays at state level, as in the mockup. A state with more than one office opens to choose one office, or the whole state.
+- **Auditing.** Changes to roles and role permissions are recorded in audit_log.
 
 ## 9. Commission and pay rules (Phase 3)
 
@@ -283,7 +306,7 @@ The owner approved five mockups. They were in Appendix A and now live in [`docs/
 ### Navigation
 
 - Sidebar: New emergency (yellow), New job or lead, then Home, Boards, Schedule, Dispatch, Customers, Partners, Tasks, Reports.
-- A location filter on office screens: All locations, Pennsylvania, Utah.
+- A location filter on office screens: All locations, Pennsylvania, Utah. A state with more than one office opens to choose one office or the whole state.
 - One search box: name, address, phone, email, job number, claim number.
 
 ### Screens

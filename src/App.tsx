@@ -5,6 +5,7 @@ import type { Backend } from './lib/backend'
 import { LocationProvider } from './lib/LocationContext'
 import { SessionProvider, useSession } from './lib/SessionContext'
 import { Loading, NoProfile, ProfileError, SwitchedOff } from './pages/Notices'
+import { ChoosePassword } from './pages/Passwords'
 import { SignIn } from './pages/SignIn'
 
 type AppRouter = ReturnType<typeof createBrowserRouter>
@@ -42,6 +43,8 @@ function Gate({ router }: { router: AppRouter }) {
       return <ProfileError retry={session.retry} />
     case 'switched-off':
       return <SwitchedOff />
+    case 'needs-password':
+      return <ChoosePassword />
     case 'signed-in':
       return (
         <LocationProvider>

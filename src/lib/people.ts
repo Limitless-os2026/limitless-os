@@ -18,6 +18,7 @@ export interface Person {
   firstName: string | null
   lastName: string | null
   email: string | null
+  phone: string | null
   roleId: string
   primaryOfficeId: string | null
   officeIds: string[]
@@ -29,7 +30,10 @@ export interface SignedInPerson {
   firstName: string | null
   lastName: string | null
   email: string | null
+  phone: string | null
   isActive: boolean
+  /** Still on a temporary password from an Admin: must choose their own before anything else. */
+  mustChangePassword: boolean
   role: Role
   permissions: string[]
 }
@@ -112,4 +116,63 @@ export function personChangeFrom(personId: string, form: PersonForm): { change: 
       isActive: form.isActive,
     },
   }
+}
+
+/** What the Add person form sends. */
+export interface NewPerson {
+  email: string
+  firstName: string
+  lastName: string
+  roleId: string
+  officeIds: string[]
+  primaryOfficeId: string | null
+}
+
+export interface NewPersonForm {
+  email: string
+  firstName: string
+  lastName: string
+  roleId: string
+  officeIds: string[]
+  primaryOfficeId: string | null
+}
+
+/** Checks the Add person form. Everyone added belongs to at least one office. */
+export function newPersonFrom(form: NewPersonForm): { person: NewPerson } | { error: string } {
+  const email = form.email.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Enter a valid email address.' }
+  if (!form.firstName.trim()) return { error: 'Enter their first name.' }
+  if (!form.roleId) return { error: 'Pick a role.' }
+  if (form.officeIds.length === 0) return { error: 'Pick at least one office.' }
+  const checked = personChangeFrom('', { ...form, isActive: true })
+  if ('error' in checked) return checked
+  return {
+    person: {
+      email,
+      firstName: checked.change.firstName,
+      lastName: checked.change.lastName,
+      roleId: checked.change.roleId,
+      officeIds: checked.change.officeIds,
+      primaryOfficeId: checked.change.primaryOfficeId,
+    },
+  }
+}
+
+/** What a person can change about themself: name and phone. */
+export interface MyDetails {
+  firstName: string
+  lastName: string
+  phone: string
+}
+
+/** The shortest password the sign-in service accepts (supabase/config.toml). */
+export const MINIMUM_PASSWORD_LENGTH = 10
+
+/** Checks a new password and its second entry. Returns a plain message, or null when it is fine. */
+export function newPasswordProblem(password: string, repeated: string): string | null {
+  if (password.length < MINIMUM_PASSWORD_LENGTH) {
+    return `Use at least ${MINIMUM_PASSWORD_LENGTH} characters.`
+  }
+  if (password !== repeated) return 'The two passwords do not match.'
+  return null
 }

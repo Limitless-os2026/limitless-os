@@ -2,7 +2,7 @@
 
 import { FriendlyError, type Backend, type SessionUser } from '../lib/backend'
 import type { Locations } from '../lib/locations'
-import type { Person, PersonChange, Role } from '../lib/people'
+import type { MyDetails, NewPerson, Person, PersonChange, Role } from '../lib/people'
 
 export const roles: Role[] = [
   { id: 'role-accountant', key: 'accountant', name: 'Accountant', scope: 'company' },
@@ -13,8 +13,8 @@ export const roles: Role[] = [
 
 const permissions: Record<string, string[]> = {
   'role-admin': ['manage_users', 'manage_permissions', 'manage_settings', 'view_audit_log'],
-  'role-pm': ['view_margins'],
-  'role-sales': ['view_commissions'],
+  'role-pm': ['view_margins', 'manage_teams'],
+  'role-sales': [],
   'role-accountant': ['view_margins'],
 }
 
@@ -38,6 +38,7 @@ export function samplePeople(): Person[] {
       firstName: 'Avery',
       lastName: 'Admin',
       email: 'avery@example.com',
+      phone: '555-0100',
       roleId: 'role-admin',
       primaryOfficeId: 'office-reading',
       officeIds: ['office-reading'],
@@ -48,6 +49,7 @@ export function samplePeople(): Person[] {
       firstName: null,
       lastName: null,
       email: 'new.rep@example.com',
+      phone: null,
       roleId: 'role-sales',
       primaryOfficeId: null,
       officeIds: [],
@@ -58,6 +60,7 @@ export function samplePeople(): Person[] {
       firstName: 'Lee',
       lastName: 'Leaver',
       email: 'lee@example.com',
+      phone: null,
       roleId: 'role-sales',
       primaryOfficeId: null,
       officeIds: [],
@@ -72,7 +75,15 @@ export interface FakeBackend extends Backend {
   people: Person[]
   locations: Locations
   updates: PersonChange[]
+  added: NewPerson[]
+  myDetails: MyDetails[]
+  /** Each person's password. Everyone starts on PASSWORD. */
+  passwords: Map<string, string>
+  /** People still on a temporary password. */
+  temporary: Set<string>
 }
+
+let nextTemporary = 1
 
 export function fakeBackend(options: { signedInAs?: string | null; locations?: Locations } = {}): FakeBackend {
   let user: SessionUser | null = null
@@ -93,6 +104,10 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
     people,
     locations: options.locations ?? sampleLocations(),
     updates: [],
+    added: [],
+    myDetails: [],
+    passwords: new Map(people.map((person) => [person.id, PASSWORD])),
+    temporary: new Set(),
 
     async currentUser() {
       return user
@@ -103,7 +118,7 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
     },
     async signIn(email, password) {
       const person = people.find((candidate) => candidate.email === email.trim())
-      if (!person || password !== PASSWORD) throw new FriendlyError('That email and password do not match.')
+      if (!person || password !== backend.passwords.get(person.id)) throw new FriendlyError('That email and password do not match.')
       setUser({ id: person.id, email: person.email })
     },
     async signOut() {
@@ -119,9 +134,11 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
         firstName: person.firstName,
         lastName: person.lastName,
         email: person.email,
+        phone: person.phone,
         isActive: person.isActive,
+        mustChangePassword: backend.temporary.has(person.id),
         role,
-        permissions: person.isActive ? (permissions[role.id] ?? []) : [],
+        permissions: person.isActive && !backend.temporary.has(person.id) ? (permissions[role.id] ?? []) : [],
       }
     },
     async loadLocations() {
@@ -144,6 +161,45 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
         officeIds: change.officeIds,
         primaryOfficeId: change.primaryOfficeId,
         isActive: change.isActive,
+      })
+    },
+    async addPerson(person) {
+      backend.added.push(person)
+      if (people.some((candidate) => candidate.email === person.email)) {
+        throw new FriendlyError('Someone with that email can already sign in.')
+      }
+      const id = `user-added-${backend.added.length}`
+      const temporaryPassword = `Temp-${nextTemporary++}-Pass`
+      people.push({ id, phone: null, isActive: true, ...person, lastName: person.lastName || null })
+      backend.passwords.set(id, temporaryPassword)
+      backend.temporary.add(id)
+      return { personId: id, temporaryPassword }
+    },
+    async resetPassword(personId) {
+      const temporaryPassword = `Temp-${nextTemporary++}-Pass`
+      backend.passwords.set(personId, temporaryPassword)
+      backend.temporary.add(personId)
+      return { temporaryPassword }
+    },
+    async changeMyPassword(newPassword, currentPassword) {
+      if (!user) throw new FriendlyError('Sign in first.')
+      if (currentPassword !== undefined && currentPassword !== backend.passwords.get(user.id)) {
+        throw new FriendlyError('Your current password is not right.')
+      }
+      if (newPassword === backend.passwords.get(user.id)) {
+        throw new FriendlyError('Choose a password different from the one you have now.')
+      }
+      backend.passwords.set(user.id, newPassword)
+      backend.temporary.delete(user.id)
+    },
+    async updateMyDetails(details) {
+      backend.myDetails.push(details)
+      const person = people.find((candidate) => candidate.id === user?.id)
+      if (!person) throw new FriendlyError('Sign in first.')
+      Object.assign(person, {
+        firstName: details.firstName.trim() || null,
+        lastName: details.lastName.trim() || null,
+        phone: details.phone.trim() || null,
       })
     },
   }

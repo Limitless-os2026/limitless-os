@@ -4,7 +4,7 @@ import { useBackend } from '../lib/SessionContext'
 // Full-page messages shown instead of the app: missing settings, loading,
 // and accounts that cannot use the app yet.
 
-function Notice({ title, children }: { title: string; children?: ReactNode }) {
+export function Notice({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="gate">
       <div className="gate__brand">Limitless OS</div>
@@ -38,7 +38,7 @@ export function Loading() {
   )
 }
 
-function SignOutButton() {
+export function SignOutButton() {
   const backend = useBackend()
   const [busy, setBusy] = useState(false)
   return (
