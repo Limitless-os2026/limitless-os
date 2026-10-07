@@ -20,6 +20,7 @@ import {
   customerFormFor,
   customerName,
   customerOfficeLabel,
+  defaultOfficeForNewCustomer,
   duplicateWarning,
   emptyPropertyForm,
   formatPhone,
@@ -294,6 +295,7 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
   const me = useSignedInPerson()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { location } = useLocationFilter()
   const offices = officesForNewCustomer(me, locations.offices)
   const [form, setForm] = useState<NewCustomerForm>({
     customerType: 'person',
@@ -302,7 +304,7 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
     companyName: '',
     phone: '',
     email: '',
-    officeId: offices[0]?.id ?? '',
+    officeId: defaultOfficeForNewCustomer(offices, locations.states, location),
     property: { ...emptyPropertyForm },
   })
   const [error, setError] = useState<string | null>(null)
@@ -361,6 +363,19 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
         </label>
         <DuplicateWarning phone={form.phone} />
 
+        {offices.length > 1 && (
+          <label className="field">
+            Office
+            <select value={form.officeId} onChange={(event) => setForm({ ...form, officeId: event.target.value })}>
+              {offices.map((office) => (
+                <option key={office.id} value={office.id}>
+                  {customerOfficeLabel({ officeId: office.id }, locations.offices, locations.states)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <label className="field">
           <span>Email <span className="field__optional">(optional)</span></span>
           <input
@@ -379,19 +394,6 @@ function NewCustomerForm({ locations }: { locations: Locations }) {
           form={form.property}
           onChange={(property) => setForm({ ...form, property })}
         />
-
-        {offices.length > 1 && (
-          <label className="field">
-            Office
-            <select value={form.officeId} onChange={(event) => setForm({ ...form, officeId: event.target.value })}>
-              {offices.map((office) => (
-                <option key={office.id} value={office.id}>
-                  {customerOfficeLabel({ officeId: office.id }, locations.offices, locations.states)}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
 
         {error && (
           <p role="alert" className="form-error">
@@ -459,7 +461,7 @@ function NameFields({
         <input type="text" autoComplete="off" value={form.firstName} onChange={(event) => onChange({ firstName: event.target.value })} />
       </label>
       <label className="field">
-        Last name
+        <span>Last name <span className="field__optional">(optional)</span></span>
         <input type="text" autoComplete="off" value={form.lastName} onChange={(event) => onChange({ lastName: event.target.value })} />
       </label>
     </div>

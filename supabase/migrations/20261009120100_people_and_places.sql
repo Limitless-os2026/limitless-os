@@ -111,10 +111,13 @@ create table public.organizations (
 create index organizations_parent_idx on public.organizations (parent_organization_id);
 create index organizations_external_idx on public.organizations (external_source, external_id);
 
--- An organization cannot be its own parent through a loop either.
+-- An organization cannot be its own parent through a loop either. Runs as
+-- the table owner so it walks the whole chain, including any organization
+-- the person making the change cannot see (an archived one, for instance).
 create function public.keep_organizations_a_tree()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare

@@ -1,7 +1,9 @@
 import {
   contactFrom,
   contactName,
+  contactPath,
   emptyContactForm,
+  newContactPath,
   emptyOrganizationForm,
   organizationAddress,
   organizationFrom,
@@ -142,5 +144,11 @@ describe('contact form', () => {
   it('shows a name or says there is none', () => {
     expect(contactName({ firstName: 'Priya', lastName: null })).toBe('Priya')
     expect(contactName({ firstName: null, lastName: null })).toBe('No name')
+  })
+
+  it('lives under Partners', () => {
+    expect(contactPath('c1')).toBe('/partners/contacts/c1')
+    expect(newContactPath('org-1')).toBe('/partners/contacts/new?organization=org-1')
+    expect(newContactPath(null)).toBe('/partners/contacts/new')
   })
 })

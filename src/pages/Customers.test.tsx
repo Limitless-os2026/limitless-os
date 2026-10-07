@@ -164,7 +164,7 @@ describe('New customer', () => {
     const { backend } = renderApp('/customers/new', fakeBackend({ signedInAs: 'user-sales' }))
 
     await user.type(await screen.findByLabelText('First name'), 'Maya')
-    await user.type(screen.getByLabelText('Last name'), 'Lindgren')
+    await user.type(screen.getByLabelText(/^Last name/), 'Lindgren')
     await user.type(screen.getByLabelText('Phone'), '610-555-0199')
     await user.type(screen.getByLabelText(/^Email/), 'Maya@Example.com')
     await user.type(screen.getByLabelText('Street address'), '9 Ridge Road')

@@ -741,6 +741,14 @@ select tests.check(
   (select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-00000000000b') = 2,
   'changing your own phone does not sign you out');
 
+-- Harper adds a customer first, so a later check can show that a switched-off
+-- person loses sight even of the customers they added themselves.
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-000000000014');
+insert into public.customers (first_name, last_name, phone, office_id)
+  values ('Quinn', 'Harlow', '610-555-0600', (select id from public.offices where name = 'Reading'));
+reset role;
+
 -- Switched off directly rather than through the People screen, to show the
 -- rule holds whichever way the change is made.
 set role authenticated;
@@ -753,6 +761,30 @@ select tests.check(
 select tests.check(
   (select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-00000000000b') = 2,
   'switching someone off leaves everyone else signed in');
+
+-- Switched off through the People screen, with an empty office list: Rowan
+-- joins Reading, signs in on two devices and is then let go.
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-000000000015', 'parting@example.com');
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.update_person(
+  '00000000-0000-0000-0000-000000000015', 'Rowan', 'Parting',
+  (select id from public.roles where key = 'sales'),
+  array(select id from public.offices where name = 'Reading'),
+  (select id from public.offices where name = 'Reading'), true);
+reset role;
+insert into auth.sessions (user_id) values
+  ('00000000-0000-0000-0000-000000000015'), ('00000000-0000-0000-0000-000000000015');
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.update_person(
+  '00000000-0000-0000-0000-000000000015', 'Rowan', 'Parting',
+  (select id from public.roles where key = 'sales'), '{}', null, false);
+reset role;
+select tests.check(
+  (select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-000000000015') = 0
+  and (select count(*) from auth.sessions where user_id = '00000000-0000-0000-0000-00000000000b') = 2,
+  'switching someone off from the People screen signs them out on every device too');
 
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000c');
@@ -806,6 +838,17 @@ insert into public.customers (customer_type, company_name, phone, office_id)
 select tests.check(
   exists (select 1 from public.customers where company_name = 'Ridge Top Rentals LLC' and first_name is null),
   'a company name counts as a name');
+
+insert into public.customers (first_name, last_name, phone, office_id)
+  values ('Bea', 'Lindgren', '+1 (610) 555-0777', (select id from public.offices where name = 'Reading'));
+select tests.check(
+  (select phone_digits from public.customers where first_name = 'Bea') = '16105550777',
+  'a phone number written with the country code is accepted and keeps all its digits');
+insert into public.customers (first_name, last_name, phone, office_id)
+  values ('Ola', 'Berg', '555-0123', (select id from public.offices where name = 'Reading'));
+select tests.check(
+  (select phone_digits from public.customers where first_name = 'Ola') = '5550123',
+  'a phone number of exactly seven digits is accepted');
 reset role;
 
 set role authenticated;
@@ -872,8 +915,8 @@ select tests.check(
   and tests.count_all($$select * from public.properties where address_line1 = '1 Nowhere Road'$$) = 0,
   'a refused New customer form saves nothing, not even the property');
 select tests.check(
-  tests.count_all('select * from public.customers') = 8 and tests.count_all('select * from public.properties') = 6,
-  'eight customers and six properties so far');
+  tests.count_all('select * from public.customers') = 11 and tests.count_all('select * from public.properties') = 6,
+  'eleven customers and six properties so far');
 reset role;
 
 set role authenticated;
@@ -915,16 +958,16 @@ select tests.fails(
 reset role;
 
 -- ---------------------------------------------------------------------------
--- Seeing customers, by the role's scope. Twelve customers: nine in Reading
--- (Dana, Samuel, Oakridge, Nadia, Ridge Top, Taylor, Chris, Imani, Felix)
--- and three in American Fork (Luis, Walter, Hollis).
+-- Seeing customers, by the role's scope. Fifteen customers: twelve in Reading
+-- (Dana, Samuel, Oakridge, Quinn, Nadia, Ridge Top, Bea, Ola, Taylor, Chris,
+-- Imani, Felix) and three in American Fork (Luis, Walter, Hollis).
 -- ---------------------------------------------------------------------------
 
-select tests.check(tests.count_all('select * from public.customers') = 12, 'twelve customers in all');
+select tests.check(tests.count_all('select * from public.customers') = 15, 'fifteen customers in all');
 
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000b');
-select tests.check(tests.count_rows('select * from public.customers') = 4, 'Sales see only the customers they added');
+select tests.check(tests.count_rows('select * from public.customers') = 6, 'Sales see only the customers they added');
 select tests.check(
   tests.count_rows('select * from public.customers where created_by is null') = 0,
   'Sales do not see the seeded customers of their office');
@@ -946,7 +989,7 @@ reset role;
 
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000e');
-select tests.check(tests.count_rows('select * from public.customers') = 9, 'a Project manager sees every customer in their office');
+select tests.check(tests.count_rows('select * from public.customers') = 12, 'a Project manager sees every customer in their office');
 select tests.check(
   tests.count_rows($$select * from public.customers where first_name = 'Dana'$$) = 1,
   'a Project manager sees the seeded customers of their office');
@@ -962,22 +1005,39 @@ reset role;
 
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000c');
-select tests.check(tests.count_rows('select * from public.customers') = 12, 'the Admin sees every customer');
+select tests.check(tests.count_rows('select * from public.customers') = 15, 'the Admin sees every customer');
 reset role;
 
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-000000000011');
-select tests.check(tests.count_rows('select * from public.customers') = 12, 'an Accountant sees every customer');
+select tests.check(tests.count_rows('select * from public.customers') = 15, 'an Accountant sees every customer');
 reset role;
 
+-- Harper added a customer before being switched off.
 set role authenticated;
-select tests.sign_in('00000000-0000-0000-0000-00000000000d');
-select tests.check(tests.count_rows('select * from public.customers') = 0, 'a switched-off person sees no customers');
+select tests.sign_in('00000000-0000-0000-0000-000000000014');
+select tests.check(
+  tests.count_all($$select * from public.customers where created_by = '00000000-0000-0000-0000-000000000014'$$) = 1
+  and tests.count_rows('select * from public.customers') = 0,
+  'a switched-off person sees no customers, not even the one they added');
 reset role;
 
+-- A temporary password shuts out even a company-wide role until the person
+-- chooses their own password.
 set role authenticated;
-select tests.sign_in('00000000-0000-0000-0000-00000000000f');
-select tests.check(tests.count_rows('select * from public.customers') = 0, 'on a temporary password, a person sees no customers');
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.require_password_change('00000000-0000-0000-0000-000000000011');
+reset role;
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-000000000011');
+select tests.check(tests.count_rows('select * from public.customers') = 0,
+  'on a temporary password, a person sees no customers, not even with a company-wide role');
+reset role;
+update auth.users set encrypted_password = 'their-own' where id = '00000000-0000-0000-0000-000000000011';
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-000000000011');
+select tests.check(tests.count_rows('select * from public.customers') = 15,
+  'after choosing a password, the Accountant sees every customer again');
 reset role;
 
 -- Visibility goes by the role's scope, which is data, not by the role's name.
@@ -987,7 +1047,7 @@ update public.roles set scope = 'office' where key = 'sales';
 reset role;
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000b');
-select tests.check(tests.count_rows('select * from public.customers') = 9,
+select tests.check(tests.count_rows('select * from public.customers') = 12,
   'visibility follows the role''s scope: Sales given office scope see their whole office');
 reset role;
 set role authenticated;
@@ -1032,6 +1092,9 @@ select tests.check(
 select tests.changes_nothing(
   $$update public.customers set notes = 'Not mine' where first_name = 'Luis'$$,
   'a Project manager cannot change a customer in another office');
+select tests.fails(
+  $$update public.customers set office_id = (select id from public.offices where name = 'American Fork') where first_name = 'Dana'$$,
+  '42501', 'a Project manager cannot move a customer to an office they are not in');
 select tests.fails(
   $$delete from public.customers where first_name = 'Dana'$$,
   '42501', 'a Project manager cannot delete a customer');
@@ -1108,6 +1171,14 @@ select tests.check(
 select tests.changes_nothing(
   $$update public.properties set notes = 'Not mine' where address_line1 = '412 Birchwood Lane'$$,
   'Sales cannot change the property of a customer they cannot see');
+-- No where clause here: the rule on the changed row alone has to refuse it.
+select tests.fails(
+  $$update public.properties set customer_id = tests.customer_id('(610) 555-0101')$$,
+  '42501', 'Sales cannot move their properties to a customer they cannot see');
+select tests.check(
+  (select c.first_name from public.properties p join public.customers c on c.id = p.customer_id
+    where p.address_line1 = '14 Harbor Way') = 'Nadia',
+  'the refused move left the property with its customer');
 select tests.fails(
   $$delete from public.properties where address_line1 = '14 Harbor Way'$$,
   '42501', 'Sales cannot delete a property');
@@ -1162,6 +1233,18 @@ select tests.check(
   (select created_by = '00000000-0000-0000-0000-00000000000b' and not is_referral_partner
      from public.organizations where name = 'Ridgeline Supply Co'),
   'Sales can add an organization');
+-- Adding is open to everyone, and a new organization is added with its type
+-- and parent, so Sales can add a franchise straight under its ownership
+-- group. Only changing an existing organization's place in the chain is
+-- limited. Whether adding into the chain should be limited too is a question
+-- in the pull request; this check records how it works today.
+insert into public.organizations (name, org_type, parent_organization_id, is_referral_partner, phone, city, state)
+  values ('SERVPRO of Maple Run', 'servpro_franchise',
+          (select id from public.organizations where name = 'Keystone Restoration Holdings'), true, '610-555-0154', 'Reading', 'PA');
+select tests.check(
+  (select g.name from public.organizations f join public.organizations g on g.id = f.parent_organization_id
+    where f.name = 'SERVPRO of Maple Run') = 'Keystone Restoration Holdings',
+  'Sales can add a new franchise under an ownership group');
 insert into public.contacts (organization_id, first_name, last_name, contact_role, mobile)
   values ((select id from public.organizations where name = 'Ridgeline Supply Co'), 'Noor', 'Haddad', 'office_manager', '610-555-0501');
 select tests.check(
@@ -1267,6 +1350,37 @@ select tests.fails(
   '42501', 'nobody can delete a contact, not even the Admin');
 reset role;
 
+-- A loop is refused even through an organization the person cannot see. No
+-- rule hides organizations yet (archiving will), so this check hides archived
+-- ones for a moment: the middle of the Alder chain is archived and hidden,
+-- and putting the group under the bottom franchise must still be refused.
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+update public.organizations set archived_at = now() where name = 'SERVPRO of Alder Creek';
+reset role;
+create policy "Test only: hide archived organizations" on public.organizations
+  as restrictive for select to authenticated using (archived_at is null);
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select tests.check(
+  tests.count_rows($$select * from public.organizations where name = 'SERVPRO of Alder Creek'$$) = 0,
+  'for this check, the archived franchise in the middle of the chain is hidden');
+select tests.fails(
+  $$update public.organizations
+       set parent_organization_id = (select id from public.organizations where name = 'SERVPRO of Alder Creek East')
+     where name = 'Alder Restoration Group'$$,
+  '23514', 'a loop through an organization the person cannot see is still refused');
+reset role;
+drop policy "Test only: hide archived organizations" on public.organizations;
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+update public.organizations set archived_at = null where name = 'SERVPRO of Alder Creek';
+reset role;
+select tests.check(
+  (select parent_organization_id is null from public.organizations where name = 'Alder Restoration Group')
+  and (select archived_at is null from public.organizations where name = 'SERVPRO of Alder Creek'),
+  'the Alder chain is back as it was');
+
 set role anon;
 select tests.sign_in(null);
 select tests.fails('select * from public.organizations', '42501', 'signed-out visitors cannot read organizations');
@@ -1285,8 +1399,8 @@ select tests.fails(
 reset role;
 
 select tests.check(
-  tests.count_all('select * from public.organizations') = 11 and tests.count_all('select * from public.contacts') = 7,
-  'eleven organizations and seven contacts in all');
+  tests.count_all('select * from public.organizations') = 12 and tests.count_all('select * from public.contacts') = 7,
+  'twelve organizations and seven contacts in all');
 
 -- ---------------------------------------------------------------------------
 -- The duplicate warning on the New customer form: by phone digits only
@@ -1310,11 +1424,28 @@ select tests.check(
 select tests.check(
   (select display_name from public.customers_with_phone('610-555-0103')) = 'Oakridge Property Group LLC',
   'a company customer is named by its company name in the warning');
+-- Bea's number was saved with the country code; the warning finds her from
+-- the ten digits, however the number being typed is written.
+select tests.check(
+  (select display_name from public.customers_with_phone('610-555-0777')) = 'Bea Lindgren',
+  'a customer saved with the country code is found from the ten digits alone');
+select tests.check(
+  tests.count_rows($$select * from public.customers_with_phone('(610) 555-0777')$$) = 1
+  and tests.count_rows($$select * from public.customers_with_phone('+1 (610) 555-0777')$$) = 1,
+  'a customer saved with the country code is found whether or not it is typed');
+-- A person recorded with only a company name is still named in the warning.
+insert into public.customers (customer_type, company_name, phone, office_id)
+  values ('person', 'Lantern Hill Bakery', '610-555-0905', (select id from public.offices where name = 'Reading'));
+select tests.check(
+  (select display_name from public.customers_with_phone('610-555-0905')) = 'Lantern Hill Bakery',
+  'a person recorded with only a company name is named by it in the warning');
+-- A half-typed number is simply not looked up yet. Every saved number has at
+-- least seven digits, so this is how the form behaves, not a rule of its own.
 select tests.check(
   tests.count_rows($$select * from public.customers_with_phone('555-01')$$) = 0,
-  'fewer than seven digits gives no duplicate warning');
+  'a half-typed phone number with fewer than seven digits gives no duplicate warning yet');
 select tests.check(
-  tests.count_rows($$select * from public.customers_with_phone('610-555-0777')$$) = 0,
+  tests.count_rows($$select * from public.customers_with_phone('610-555-0888')$$) = 0,
   'a phone number nobody has gives no duplicate warning');
 reset role;
 
@@ -1424,6 +1555,13 @@ select tests.check(
   exists (select 1 from public.search_records('Oakridge') where kind = 'customer' and title = 'Oakridge Property Group LLC'),
   'a company customer is found by its company name');
 select tests.check(
+  exists (select 1 from public.search_records('6105550777') where kind = 'customer' and title = 'Bea Lindgren')
+  and exists (select 1 from public.search_records('(610) 555-0777') where kind = 'customer' and title = 'Bea Lindgren'),
+  'a customer saved with the country code is found by the ten digits, bare or formatted');
+select tests.check(
+  exists (select 1 from public.search_records('Lantern Hill') where kind = 'customer' and title = 'Lantern Hill Bakery'),
+  'a person recorded with only a company name is found and named by it');
+select tests.check(
   tests.count_rows($$select * from public.search_records('Herrera') where kind = 'customer'$$) = 0,
   'a Project manager does not find customers of other offices');
 select tests.check(
@@ -1445,8 +1583,8 @@ select tests.check(
   exists (select 1 from public.search_records('Delgado') where kind = 'contact' and title = 'Rosa Delgado' and detail is null),
   'a contact without an organization is found, with no organization shown');
 select tests.check(
-  (select string_agg(kind, ',' order by kind) from public.search_records('SERVPRO')) = 'organization,organization,organization,organization,organization',
-  'a search for SERVPRO finds the five franchises and nothing else');
+  (select string_agg(kind, ',' order by kind) from public.search_records('SERVPRO')) = 'organization,organization,organization,organization,organization,organization',
+  'a search for SERVPRO finds the six franchises and nothing else');
 select tests.check(tests.count_rows($$select * from public.search_records('%')$$) = 0,
   'a search for just a percent sign finds nothing, rather than everything');
 select tests.check(tests.count_rows($$select * from public.search_records('_')$$) = 0,
@@ -1471,6 +1609,17 @@ reset role;
 -- offices. Company-wide entries, and everything else, are for Admins.
 -- ---------------------------------------------------------------------------
 
+-- Harper, already switched off, is moved from Reading to American Fork, so
+-- Reading's Project manager has someone who was taken out of their office.
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.update_person(
+  '00000000-0000-0000-0000-000000000014', 'Harper', 'Leaving-Soon',
+  (select id from public.roles where key = 'sales'),
+  array(select id from public.offices where name = 'American Fork'),
+  (select id from public.offices where name = 'American Fork'), false);
+reset role;
+
 set role authenticated;
 select tests.sign_in('00000000-0000-0000-0000-00000000000e');
 select tests.check(
@@ -1486,6 +1635,19 @@ select tests.check(
   tests.count_rows($$select * from public.audit_log where table_name = 'profile_offices'
                        and changes -> 'office_id' ->> 'new' = (select id::text from public.offices where name = 'Reading')$$) > 0,
   'a Project manager sees who was added to their office');
+select tests.check(
+  tests.count_rows($$select * from public.audit_log where table_name = 'profile_offices' and action = 'delete'
+                       and changes -> 'office_id' ->> 'old' = (select id::text from public.offices where name = 'Reading')
+                       and changes -> 'profile_id' ->> 'old' = '00000000-0000-0000-0000-000000000014'$$) = 1,
+  'a Project manager sees who was taken out of their office');
+-- Entries about a person go by the offices they are in now, so Harper's
+-- profile entries have moved to American Fork along with Harper. Whether the
+-- old office should keep the entries from Harper's time there is a question
+-- in the pull request; this check records how it works today.
+select tests.check(
+  tests.count_all($$select * from public.audit_log where table_name = 'profiles' and record_id = '00000000-0000-0000-0000-000000000014'$$) > 0
+  and tests.count_rows($$select * from public.audit_log where table_name = 'profiles' and record_id = '00000000-0000-0000-0000-000000000014'$$) = 0,
+  'once someone has moved to another office, the entries about them go with them');
 select tests.check(
   tests.count_rows($$select * from public.audit_log where table_name = 'profile_offices'
                        and coalesce(changes -> 'office_id' ->> 'new', changes -> 'office_id' ->> 'old')
@@ -1508,6 +1670,12 @@ select tests.check(
   tests.count_rows($$select * from public.audit_log where table_name = 'customers' and record_id = tests.customer_id('801-555-0200')$$) > 0
   and tests.count_rows($$select * from public.audit_log where table_name = 'customers' and record_id = tests.customer_id('610-555-0201')$$) = 0,
   'the American Fork Project manager sees the audit entries about their own customers instead');
+select tests.check(
+  tests.count_rows($$select * from public.audit_log where table_name = 'profiles' and record_id = '00000000-0000-0000-0000-000000000014'$$) > 0
+  and tests.count_rows($$select * from public.audit_log where table_name = 'profile_offices'
+                           and changes -> 'office_id' ->> 'new' = (select id::text from public.offices where name = 'American Fork')
+                           and changes -> 'profile_id' ->> 'new' = '00000000-0000-0000-0000-000000000014'$$) = 1,
+  'the American Fork Project manager sees Harper''s entries and Harper joining their office');
 reset role;
 
 set role authenticated;
@@ -1531,4 +1699,95 @@ select tests.check(
                            and coalesce(changes -> 'office_id' ->> 'new', changes -> 'office_id' ->> 'old')
                                = (select id::text from public.offices where name = 'American Fork')$$) > 0,
   'the Admin sees the entries about American Fork people and membership that Reading could not');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- State scope, kept for a future regional manager: every office in the states
+-- they belong to. No role has it yet, so the Admin makes one here and puts
+-- Devon in the Test office, which is in Pennsylvania like Reading.
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-000000000016', 'regional@example.com');
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+insert into public.roles (key, name, scope) values ('regional_manager', 'Regional manager', 'state');
+select public.update_person(
+  '00000000-0000-0000-0000-000000000016', 'Devon', 'Statewide',
+  (select id from public.roles where key = 'regional_manager'),
+  array(select id from public.offices where name = 'Test office'),
+  (select id from public.offices where name = 'Test office'), true);
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-000000000016');
+select tests.check(
+  tests.count_rows('select * from public.customers') > 0
+  and tests.count_rows('select * from public.customers')
+      = tests.count_all($$select * from public.customers c join public.offices o on o.id = c.office_id
+                            join public.states s on s.id = o.state_id where s.code = 'PA'$$),
+  'a regional manager in one Pennsylvania office sees the customers of every Pennsylvania office');
+select tests.check(
+  tests.count_rows($$select * from public.customers c join public.offices o on o.id = c.office_id where o.name = 'American Fork'$$) = 0,
+  'a regional manager does not see customers in another state');
+select tests.check(
+  tests.count_rows('select * from public.properties')
+    = tests.count_all($$select * from public.properties p join public.customers c on c.id = p.customer_id
+                          join public.offices o on o.id = c.office_id join public.states s on s.id = o.state_id where s.code = 'PA'$$),
+  'a regional manager sees the properties of every customer in their state');
+insert into public.customers (first_name, last_name, phone, office_id)
+  values ('Marta', 'Kowalski', '484-555-0700', (select id from public.offices where name = 'Reading'));
+select tests.check(
+  exists (select 1 from public.customers where first_name = 'Marta' and created_by = '00000000-0000-0000-0000-000000000016'),
+  'a regional manager can add a customer in another office of their state');
+select tests.fails(
+  $$insert into public.customers (first_name, phone, office_id)
+    values ('Nope', '801-555-0996', (select id from public.offices where name = 'American Fork'))$$,
+  '42501', 'a regional manager cannot add a customer in another state');
+select tests.check(
+  exists (select 1 from public.search_records('Whitfield') where kind = 'customer' and title = 'Dana Whitfield')
+  and tests.count_rows($$select * from public.search_records('Herrera')$$) = 0,
+  'a regional manager finds customers across their state by search, and none beyond it');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- A rep who changes office keeps the customers they created: they can still
+-- change them, but can only move a customer to an office they are in.
+-- ---------------------------------------------------------------------------
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+select public.update_person(
+  '00000000-0000-0000-0000-00000000000b', 'Samantha', 'Seller',
+  (select id from public.roles where key = 'sales'),
+  array(select id from public.offices where name = 'American Fork'),
+  (select id from public.offices where name = 'American Fork'), true);
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000b');
+select tests.check(
+  tests.count_rows($$select * from public.customers where first_name = 'Nadia'$$) = 1,
+  'a rep who moved to another office still sees the customers they created');
+update public.customers set notes = 'Moved offices, still mine' where first_name = 'Nadia';
+select tests.check(
+  (select notes from public.customers where first_name = 'Nadia') = 'Moved offices, still mine',
+  'a rep who moved to another office can still change the customers they created');
+select tests.fails(
+  $$update public.customers set office_id = (select id from public.offices where name = 'Test office') where first_name = 'Nadia'$$,
+  '42501', 'a rep who moved offices still cannot move a customer to an office they are not in');
+update public.customers set office_id = (select id from public.offices where name = 'American Fork') where first_name = 'Nadia';
+select tests.check(
+  (select o.name from public.customers c join public.offices o on o.id = c.office_id where c.first_name = 'Nadia') = 'American Fork',
+  'a rep can move their own customer to the office they are in now');
+reset role;
+
+set role authenticated;
+select tests.sign_in('00000000-0000-0000-0000-00000000000c');
+update public.customers set office_id = (select id from public.offices where name = 'Reading') where first_name = 'Nadia';
+select public.update_person(
+  '00000000-0000-0000-0000-00000000000b', 'Samantha', 'Seller',
+  (select id from public.roles where key = 'sales'),
+  array(select id from public.offices where name = 'Reading'),
+  (select id from public.offices where name = 'Reading'), true);
 reset role;

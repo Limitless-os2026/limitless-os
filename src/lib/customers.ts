@@ -320,6 +320,26 @@ export function officesForNewCustomer(person: SignedInPerson, offices: readonly 
   })
 }
 
+/**
+ * Which office a new customer starts in: the office the location filter is
+ * set to, when it is one of the choices; the one office in the filtered
+ * state; otherwise the first choice (the person's main office).
+ */
+export function defaultOfficeForNewCustomer(
+  choices: readonly OfficeRecord[],
+  states: readonly StateRecord[],
+  location: string,
+): string {
+  const [stateCode, officeId] = location.split('/')
+  if (officeId && choices.some((office) => office.id === officeId)) return officeId
+  if (stateCode && stateCode !== 'all') {
+    const state = states.find((candidate) => candidate.code === stateCode)
+    const inState = state ? choices.filter((office) => office.stateId === state.id) : []
+    if (inState.length === 1 && inState[0]) return inState[0].id
+  }
+  return choices[0]?.id ?? ''
+}
+
 /** A customer's office as "Reading, PA". */
 export function customerOfficeLabel(customer: Pick<Customer, 'officeId'>, offices: readonly OfficeRecord[], states: readonly StateRecord[]): string {
   const office = offices.find((candidate) => candidate.id === customer.officeId)

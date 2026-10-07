@@ -34,7 +34,7 @@ describe('Partners list', () => {
     expect(rows[0]).toHaveStyle({ '--depth': '0' })
     expect(rows[1]).toHaveStyle({ '--depth': '1' })
     expect(rows[2]).toHaveStyle({ '--depth': '2' })
-    expect(rows[2]).toHaveAttribute('href', '/contacts/contact-marcus')
+    expect(rows[2]).toHaveAttribute('href', '/partners/contacts/contact-marcus')
     expect(rows[1]).toHaveAttribute('href', '/partners/org-birch')
 
     const others = screen.getByRole('region', { name: 'Other partners' })
@@ -72,7 +72,7 @@ describe('Organization page', () => {
       'Marcus BellDispatcher(610) 555-0151',
       'Priya NandakumarMitigation manager(610) 555-0191',
     ])
-    expect(screen.getByRole('link', { name: 'Add contact' })).toHaveAttribute('href', '/contacts/new?organization=org-birch')
+    expect(screen.getByRole('link', { name: 'Add contact' })).toHaveAttribute('href', '/partners/contacts/new?organization=org-birch')
     expect(screen.getByRole('link', { name: 'Call' })).toHaveAttribute('href', 'tel:6105550151')
   })
 
@@ -188,7 +188,7 @@ describe('contacts', () => {
 
   it('opens a contact with call, text and email links, and saves changes', async () => {
     const user = userEvent.setup()
-    const { router, backend } = renderApp('/contacts/contact-priya', fakeBackend({ signedInAs: 'user-sales' }))
+    const { router, backend } = renderApp('/partners/contacts/contact-priya', fakeBackend({ signedInAs: 'user-sales' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Priya Nandakumar' })).toBeInTheDocument()
     expect(screen.getByText('Mitigation manager · SERVPRO of Birch Hollow')).toBeInTheDocument()
@@ -206,7 +206,7 @@ describe('contacts', () => {
 
   it('can add a contact with no organization', async () => {
     const user = userEvent.setup()
-    const { router, backend } = renderApp('/contacts/new', fakeBackend({ signedInAs: 'user-sales' }))
+    const { router, backend } = renderApp('/partners/contacts/new', fakeBackend({ signedInAs: 'user-sales' }))
 
     await user.type(await screen.findByLabelText('Last name'), 'Okonkwo')
     await user.click(screen.getByRole('button', { name: 'Save contact' }))

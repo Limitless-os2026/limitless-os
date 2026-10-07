@@ -1,6 +1,7 @@
 import {
   customerChangeFrom,
   customerName,
+  defaultOfficeForNewCustomer,
   duplicateWarning,
   emptyPropertyForm,
   formatPhone,
@@ -212,6 +213,22 @@ describe('which office a new customer goes in', () => {
 
   it('offers nothing to a person in no office', () => {
     expect(officesForNewCustomer({ ...person, officeIds: [], primaryOfficeId: null }, offices)).toEqual([])
+  })
+
+  it('starts from the location filter when it names an office or a state with one office', () => {
+    const states = [
+      { id: 'state-pa', code: 'PA', name: 'Pennsylvania', isActive: true },
+      { id: 'state-ut', code: 'UT', name: 'Utah', isActive: true },
+    ]
+    const choices = offices.filter((office) => office.isActive)
+    expect(defaultOfficeForNewCustomer(choices, states, 'UT/office-af')).toBe('office-af')
+    expect(defaultOfficeForNewCustomer(choices, states, 'UT')).toBe('office-af')
+    // A closed office is not a choice, but its state still has one open office.
+    expect(defaultOfficeForNewCustomer(choices, states, 'PA/office-closed')).toBe('office-reading')
+    // A state with no choices, or all locations, falls back to the first choice.
+    expect(defaultOfficeForNewCustomer(choices, states, 'NV')).toBe('office-af')
+    expect(defaultOfficeForNewCustomer(choices, states, 'all')).toBe('office-af')
+    expect(defaultOfficeForNewCustomer([], states, 'all')).toBe('')
   })
 })
 

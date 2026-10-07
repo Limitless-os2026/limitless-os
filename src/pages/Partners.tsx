@@ -21,10 +21,12 @@ import {
   contactFormFor,
   contactFrom,
   contactName,
+  contactPath,
   contactRoleLabel,
   emptyContactForm,
   emptyOrganizationForm,
   MANAGE_PARTNER_STRUCTURE,
+  newContactPath,
   ORG_TYPES,
   organizationAddress,
   organizationFormFor,
@@ -104,7 +106,7 @@ export function Partners() {
         <Link to="/partners/new" className="button-next">
           New organization
         </Link>
-        <Link to="/contacts/new" className="button-plain">
+        <Link to={newContactPath()} className="button-plain">
           New contact
         </Link>
       </div>
@@ -164,7 +166,7 @@ function TreeBranch({ branch, depth }: { branch: PartnerBranch; depth: number })
   const { organization } = branch
   return (
     <>
-      <Link to={`/partners/${organization.id}`} className="tree-row tree-row--organization" style={{ '--depth': depth } as React.CSSProperties}>
+      <Link to={`/partners/${organization.id}`} className="tree-row" style={{ '--depth': depth } as React.CSSProperties}>
         <span className="list-row__main">
           <span className="list-row__title">{organization.name}</span>
           <span className="list-row__detail">{orgTypeLabel(organization.orgType)}</span>
@@ -185,7 +187,7 @@ function ContactRow({ contact, depth }: { contact: Contact; depth: number }) {
   const role = [contact.title, contact.title ? null : contactRoleLabel(contact.contactRole)].filter(Boolean).join('')
   const phone = contact.mobile ?? contact.phone
   return (
-    <Link to={`/contacts/${contact.id}`} className="tree-row tree-row--contact" style={{ '--depth': depth } as React.CSSProperties}>
+    <Link to={contactPath(contact.id)} className="tree-row tree-row--contact" style={{ '--depth': depth } as React.CSSProperties}>
       <span className="list-row__main">
         <span className="list-row__title">{contactName(contact)}</span>
         {role && <span className="list-row__detail">{role}</span>}
@@ -233,7 +235,7 @@ export function OrganizationPage() {
       <ActionBar>
         <CallLink phone={organization.phone} />
         <EmailLink email={organization.email} />
-        <Link to={`/contacts/new?organization=${organization.id}`} className="button-next">
+        <Link to={newContactPath(organization.id)} className="button-next">
           Add contact
         </Link>
       </ActionBar>

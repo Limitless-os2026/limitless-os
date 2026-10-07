@@ -22,10 +22,12 @@ export const routes: RouteObject[] = [
       { path: 'customers/:customerId/properties/new', element: <NewPropertyPage /> },
       { path: 'partners', element: <Partners /> },
       { path: 'partners/new', element: <NewOrganization /> },
+      // Contacts live under Partners, so the Partners link stays lit while
+      // one is open. Fixed words beat an organization id in the router.
+      { path: 'partners/contacts/new', element: <NewContactPage /> },
+      { path: 'partners/contacts/:contactId', element: <ContactPage /> },
       { path: 'partners/:organizationId', element: <OrganizationPage /> },
       { path: 'partners/:organizationId/edit', element: <EditOrganization /> },
-      { path: 'contacts/new', element: <NewContactPage /> },
-      { path: 'contacts/:contactId', element: <ContactPage /> },
       { path: 'search', element: <Search /> },
       { path: 'people', element: <People /> },
       { path: 'people/new', element: <AddPerson /> },

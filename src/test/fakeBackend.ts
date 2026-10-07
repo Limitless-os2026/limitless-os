@@ -17,6 +17,7 @@ import {
 import type { Locations } from '../lib/locations'
 import {
   contactName,
+  SEARCH_LIMIT,
   type Contact,
   type ContactChange,
   type NewContact,
@@ -477,7 +478,7 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
       const q = query.trim()
       if (!q) return []
       const digits = phoneKey(q)
-      const results: SearchResult[] = []
+      const customers: SearchResult[] = []
       for (const customer of backend.customers) {
         const properties = backend.properties.filter((property) => property.customerId === customer.id)
         const hit =
@@ -487,7 +488,7 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
           properties.some((property) => matches(`${property.addressLine1} ${property.city ?? ''}`, q))
         if (hit) {
           const first = properties[0]
-          results.push({
+          customers.push({
             kind: 'customer',
             id: customer.id,
             title: customerName(customer),
@@ -495,20 +496,19 @@ export function fakeBackend(options: { signedInAs?: string | null; locations?: L
           })
         }
       }
-      for (const organization of backend.organizations) {
-        if (matches(organization.name, q)) results.push({ kind: 'organization', id: organization.id, title: organization.name, detail: organization.orgType })
-      }
-      for (const found of backend.contacts) {
-        if (matches(contactName(found), q)) {
-          results.push({
-            kind: 'contact',
-            id: found.id,
-            title: contactName(found),
-            detail: backend.organizations.find((organization) => organization.id === found.organizationId)?.name ?? null,
-          })
-        }
-      }
-      return results
+      const organizations: SearchResult[] = backend.organizations
+        .filter((organization) => matches(organization.name, q))
+        .map((organization) => ({ kind: 'organization', id: organization.id, title: organization.name, detail: organization.orgType }))
+      const contacts: SearchResult[] = backend.contacts
+        .filter((found) => matches(contactName(found), q))
+        .map((found) => ({
+          kind: 'contact',
+          id: found.id,
+          title: contactName(found),
+          detail: backend.organizations.find((organization) => organization.id === found.organizationId)?.name ?? null,
+        }))
+      // Like the database: up to SEARCH_LIMIT of each kind.
+      return [...customers.slice(0, SEARCH_LIMIT), ...organizations.slice(0, SEARCH_LIMIT), ...contacts.slice(0, SEARCH_LIMIT)]
     },
   }
   return backend

@@ -51,10 +51,37 @@ create policy "Staff can add customers in their offices" on public.customers
   for insert to authenticated
   with check ((select public.is_active_staff()) and public.office_in_my_scope(office_id));
 
+-- Anyone who can see a customer can change them, and must still be able to
+-- see them afterwards. A Sales rep who moves to another office keeps the
+-- customers they created.
 create policy "Staff can change the customers they can see" on public.customers
   for update to authenticated
   using (public.can_see_customer(id, office_id, created_by))
-  with check (public.can_see_customer(id, office_id, created_by) and public.office_in_my_scope(office_id));
+  with check (public.can_see_customer(id, office_id, created_by));
+
+-- A customer can only be moved to an office within the person's scope.
+-- The database itself (migrations, server functions) is not limited.
+create function public.keep_customers_in_my_scope()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null or new.office_id is not distinct from old.office_id then
+    return new;
+  end if;
+  if not public.office_in_my_scope(new.office_id) then
+    raise exception 'You can only move a customer to one of your own offices.' using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.keep_customers_in_my_scope() from public, anon, authenticated;
+
+create trigger keep_customers_in_my_scope before update of office_id on public.customers
+  for each row execute function public.keep_customers_in_my_scope();
 
 -- ---------------------------------------------------------------------------
 -- Properties follow their customer. The checks below read customers through
@@ -186,6 +213,24 @@ grant execute on function public.phone_key(text) to authenticated;
 
 create index customers_phone_key_idx on public.customers (public.phone_key(phone_digits)) where archived_at is null;
 
+-- How a customer is named in lists, search results and the duplicate
+-- warning: the company name for a company, otherwise the person's name, and
+-- the company name again for a person recorded with only a company name. A
+-- customer always has one or the other.
+create function public.customer_display_name(customer_type text, first_name text, last_name text, company_name text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when customer_type = 'company' and nullif(btrim(company_name), '') is not null then btrim(company_name)
+    else coalesce(nullif(btrim(concat_ws(' ', first_name, last_name)), ''), btrim(company_name), '')
+  end;
+$$;
+
+grant execute on function public.customer_display_name(text, text, text, text) to authenticated;
+
 -- The duplicate warning on the New customer form. Runs as the table owner so
 -- it finds the customer whoever created them, and says whether the caller
 -- may open that customer. It gives back only the name and office, never the
@@ -206,10 +251,7 @@ begin
 
   return query
     select c.id,
-           case when c.customer_type = 'company' and nullif(btrim(c.company_name), '') is not null
-                then btrim(c.company_name)
-                else btrim(concat_ws(' ', c.first_name, c.last_name))
-           end,
+           public.customer_display_name(c.customer_type, c.first_name, c.last_name, c.company_name),
            o.name,
            public.can_see_customer(c.id, c.office_id, c.created_by)
       from public.customers c
@@ -313,10 +355,7 @@ begin
   return query
     select 'customer'::text,
            c.id,
-           case when c.customer_type = 'company' and nullif(btrim(c.company_name), '') is not null
-                then btrim(c.company_name)
-                else btrim(concat_ws(' ', c.first_name, c.last_name))
-           end,
+           public.customer_display_name(c.customer_type, c.first_name, c.last_name, c.company_name),
            concat_ws(' · ', c.phone, (
              select concat_ws(', ', p.address_line1, p.city)
                from public.properties p

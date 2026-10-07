@@ -382,3 +382,15 @@ export interface SearchResult {
   title: string
   detail: string | null
 }
+
+/** The most matches of each kind a search gives back (the database's search_records stops there too). */
+export const SEARCH_LIMIT = 20
+
+/** The web address of a contact's page. Contacts live under Partners. */
+export function contactPath(contactId: string): string {
+  return `/partners/contacts/${contactId}`
+}
+
+export function newContactPath(organizationId?: string | null): string {
+  return organizationId ? `/partners/contacts/new?organization=${organizationId}` : '/partners/contacts/new'
+}

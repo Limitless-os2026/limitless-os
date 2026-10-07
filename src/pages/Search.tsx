@@ -2,18 +2,26 @@ import { Link, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyRow, LoadingText, LoadProblem, PanelTitle } from '../components/Record'
-import { orgTypeLabel, type SearchKind, type SearchResult } from '../lib/partners'
+import { formatPhone } from '../lib/customers'
+import { contactPath, orgTypeLabel, SEARCH_LIMIT, type SearchKind, type SearchResult } from '../lib/partners'
 import { useBackend } from '../lib/SessionContext'
 
 // The one search box: customers by name, phone, email and property address,
 // and organizations and contacts by name. Each person finds only what they
-// may see.
+// may see. The database gives back up to SEARCH_LIMIT matches of each kind.
 
 const GROUPS: { kind: SearchKind; title: string; to: (id: string) => string; detail: (detail: string | null) => string }[] = [
-  { kind: 'customer', title: 'Customers', to: (id) => `/customers/${id}`, detail: (detail) => detail ?? '' },
+  { kind: 'customer', title: 'Customers', to: (id) => `/customers/${id}`, detail: customerDetail },
   { kind: 'organization', title: 'Partners', to: (id) => `/partners/${id}`, detail: (detail) => orgTypeLabel(detail) },
-  { kind: 'contact', title: 'Contacts', to: (id) => `/contacts/${id}`, detail: (detail) => detail ?? '' },
+  { kind: 'contact', title: 'Contacts', to: contactPath, detail: (detail) => detail ?? '' },
 ]
+
+/** A customer's detail comes back as "phone · first property". Show the phone the way the other screens do. */
+function customerDetail(detail: string | null): string {
+  if (!detail) return ''
+  const [phone, ...rest] = detail.split(' · ')
+  return [phone ? formatPhone(phone) : '', ...rest].filter(Boolean).join(' · ')
+}
 
 export function Search() {
   const backend = useBackend()
@@ -26,9 +34,15 @@ export function Search() {
   })
 
   const found = results.data ?? []
+  const groups = GROUPS.map((group) => ({ ...group, rows: found.filter((result) => result.kind === group.kind) })).filter(
+    (group) => group.rows.length > 0,
+  )
+  const capped = groups.some((group) => group.rows.length >= SEARCH_LIMIT)
   const eyebrow = query
     ? results.data
-      ? `${found.length} ${found.length === 1 ? 'match' : 'matches'} for “${query}”`
+      ? capped
+        ? `${found.length} or more matches for “${query}”`
+        : `${found.length} ${found.length === 1 ? 'match' : 'matches'} for “${query}”`
       : `Searching for “${query}”`
     : undefined
 
@@ -51,21 +65,17 @@ export function Search() {
           </Link>
         </section>
       ) : (
-        GROUPS.map((group) => {
-          const rows = found.filter((result) => result.kind === group.kind)
-          if (rows.length === 0) return null
-          return (
-            <section key={group.kind} aria-label={group.title} className="panel">
-              <PanelTitle>{group.title}</PanelTitle>
-              {rows.map((result) => (
-                <ResultRow key={result.id} result={result} to={group.to(result.id)} detail={group.detail(result.detail)} />
-              ))}
-            </section>
-          )
-        })
-      )}
-      {query && results.data && found.length > 0 && found.length >= 60 && (
-        <EmptyRow>Showing the first matches of each kind. Type more to narrow it down.</EmptyRow>
+        groups.map((group) => (
+          <section key={group.kind} aria-label={group.title} className="panel">
+            <PanelTitle>{group.title}</PanelTitle>
+            {group.rows.map((result) => (
+              <ResultRow key={result.id} result={result} to={group.to(result.id)} detail={group.detail(result.detail)} />
+            ))}
+            {group.rows.length >= SEARCH_LIMIT && (
+              <EmptyRow>Showing the first {SEARCH_LIMIT} {group.title.toLowerCase()} that match. Type more to narrow it down.</EmptyRow>
+            )}
+          </section>
+        ))
       )}
     </>
   )
