@@ -319,15 +319,20 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
+/* Titles are now customer and organization names, so a long one wraps
+   instead of pushing the screen wider. */
 .page-header__eyebrow {
   color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 
 .page-header__title {
   font-size: 40px;
   line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .page-header__tools {
@@ -1133,7 +1138,288 @@ a.button-next:hover {
 .page-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 16px;
+}
+
+/* ---------- Records: customers, partners, contacts, search ---------- */
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--touch);
+  align-self: flex-start;
+  margin-bottom: -12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* Call, Text and Email, with the one yellow next step at the end. */
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action-bar .button-plain {
+  min-height: 48px;
+}
+
+.action-bar .button-next {
+  min-height: 48px;
+  font-size: 17px;
+  padding: 0 20px;
+}
+
+.record-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.record-columns__main {
+  flex: 2 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.record-columns__aside {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.panel__title {
+  margin: 0;
+  padding: 16px 20px 8px;
+  font-size: 22px;
+}
+
+.panel__empty {
+  margin: 0;
+  padding: 16px 20px 20px;
+  color: var(--ink-muted);
+}
+
+/* One record in a list: a title and a detail line, with something short on the right. */
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  min-height: 60px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--line-row);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.panel > .list-row:first-child {
+  border-top: 0;
+}
+
+a.list-row:hover {
+  color: var(--ink);
+  background: var(--ground);
+}
+
+.list-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.list-row__title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.list-row__detail {
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.list-row__aside {
+  flex: none;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* The details list beside a record. */
+.details {
+  padding-bottom: 8px;
+}
+
+.details__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+}
+
+.details__label {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.details__value {
+  text-align: right;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.details__edit {
+  margin: 4px 20px 8px;
+}
+
+/* A link inside the details (the ownership group a franchise is part of) is
+   a touch target like any other. */
+.details__value a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  font-weight: 600;
+}
+
+/* The partner chain: ownership group, then franchises, then contacts. Each
+   level steps in a little further. */
+.tree-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  min-height: 56px;
+  padding: 8px 20px 8px calc(20px + var(--depth, 0) * 24px);
+  border-top: 1px solid var(--line-row);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.tree > .tree-row:first-child {
+  border-top: 0;
+}
+
+.tree-row:hover {
+  color: var(--ink);
+  background: var(--ground);
+}
+
+.tree-row--contact .list-row__title {
+  font-weight: 500;
+}
+
+.partner-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Person or Company, and other short either-or choices. */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.segmented button {
+  min-height: var(--touch);
+  border: 1px solid var(--line-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed='true'] {
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.field textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--line-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.field select:disabled {
+  color: var(--ink-muted);
+  background: var(--tint);
+}
+
+.field__optional {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.field-group--spaced {
+  gap: 16px;
+}
+
+.form__row--short {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+/* A heads-up that is not an error: the phone number already belongs to someone. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand-green);
+  border-radius: var(--radius);
+  background: var(--tint);
+}
+
+.notice__text {
+  margin: 0;
+  font-weight: 500;
+}
+
+.notice__muted {
+  margin: 0;
+  color: var(--ink-muted-on-tint);
+}
+
+@media (max-width: 767px) {
+  .list-row,
+  .tree-row {
+    flex-wrap: wrap;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .tree-row {
+    padding-left: calc(16px + var(--depth, 0) * 16px);
+  }
+
+  .list-row__aside {
+    flex: 1 0 100%;
+    white-space: normal;
+  }
+
+  .details__row {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .details__value {
+    text-align: left;
+  }
+
+  .action-bar .button-next {
+    flex: 1 0 100%;
+  }
 }
 
 .button-link {

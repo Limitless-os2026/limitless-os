@@ -57,20 +57,21 @@ describe('app shell', () => {
     const { router } = renderApp()
     await shell()
 
-    await user.click(screen.getByRole('link', { name: 'Customers' }))
-    expect(router.state.location.pathname).toBe('/customers')
-    expect(screen.getByRole('heading', { level: 1, name: 'Customers' })).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'Boards' }))
+    expect(router.state.location.pathname).toBe('/boards')
+    expect(screen.getByRole('heading', { level: 1, name: 'Boards' })).toBeInTheDocument()
     expect(screen.getByText('This screen arrives in a later step')).toBeInTheDocument()
   })
 
-  it('takes a search to the search placeholder', async () => {
+  it('takes a search to the search screen', async () => {
     const user = userEvent.setup()
     const { router } = renderApp()
     await shell()
 
-    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'PA-2600123{Enter}')
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'Whitfield{Enter}')
     expect(router.state.location.pathname).toBe('/search')
-    expect(screen.getByText(/You searched for “PA-2600123”/)).toBeInTheDocument()
+    expect(router.state.location.search).toBe('?q=Whitfield')
+    expect(await screen.findByRole('link', { name: /Dana Whitfield/ })).toBeInTheDocument()
   })
 })
 
@@ -215,8 +216,9 @@ describe('People', () => {
     expect(rows[0]).toHaveTextContent('Reading, PA')
     expect(rows[1]).toHaveTextContent('new.rep@example.com')
     expect(rows[1]).toHaveTextContent('Sales')
-    expect(rows[1]).toHaveTextContent('No office')
+    expect(rows[1]).toHaveTextContent('Reading, PA')
     expect(rows[2]).toHaveTextContent('Switched off')
+    expect(rows[2]).toHaveTextContent('No office')
   })
 
   it('changes a role, name and offices', async () => {
@@ -226,14 +228,11 @@ describe('People', () => {
     await user.type(await screen.findByLabelText('First name'), 'Riley')
     await user.type(screen.getByLabelText('Last name'), 'Rep')
     await user.selectOptions(screen.getByLabelText('Role'), 'Project manager')
-    await user.click(screen.getByLabelText('Reading, PA'))
+    expect(screen.getByLabelText('Reading, PA')).toBeChecked()
     await user.click(screen.getByLabelText('American Fork, UT'))
 
-    // Two offices: the main one has to be picked.
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Pick which of their offices is the main one.')
-    expect(backend.updates).toHaveLength(0)
-
+    // Two offices: the main one is asked for, starting from their current one.
+    expect(screen.getByLabelText('Main office')).toHaveValue('office-reading')
     await user.selectOptions(screen.getByLabelText('Main office'), 'American Fork, UT')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
@@ -262,6 +261,17 @@ describe('People', () => {
 
     await screen.findByRole('region', { name: 'Everyone who can sign in' })
     expect(backend.updates[0]?.isActive).toBe(false)
+  })
+
+  it('keeps everyone who can sign in in at least one office', async () => {
+    const user = userEvent.setup()
+    const { backend } = renderApp('/people/user-sales')
+
+    await user.click(await screen.findByLabelText('Reading, PA'))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Pick at least one office.')
+    expect(backend.updates).toHaveLength(0)
   })
 })
 

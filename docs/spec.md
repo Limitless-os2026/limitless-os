@@ -258,14 +258,34 @@ The owner's answers to the questions in pull request #2.
 
   | Role | Permissions |
   | --- | --- |
-  | Admin | Everything: manage_users, manage_permissions, manage_settings, manage_teams, view_audit_log, view_margins, view_commissions, edit_sales_credits, reassign_jobs, view_partner_reports |
-  | Project manager | Everything except managing people, roles and permissions: manage_teams, view_audit_log, view_margins, view_commissions, edit_sales_credits, reassign_jobs, view_partner_reports. Scope still limits these to their offices |
+  | Admin | Everything: manage_users, manage_permissions, manage_settings, manage_teams, edit_office_details, manage_partner_structure, view_audit_log, view_margins, view_commissions, edit_sales_credits, reassign_jobs, view_partner_reports |
+  | Project manager | Everything except managing people, roles and permissions: manage_teams, edit_office_details, manage_partner_structure, view_audit_log, view_margins, view_commissions, edit_sales_credits, reassign_jobs, view_partner_reports. Scope still limits these to their offices |
   | Accountant | view_margins, view_commissions, view_partner_reports |
   | Sales | None of the special permissions. Their own commission comes from their "own" scope in Phase 3 |
 
-  Open: whether Project managers should also get manage_settings (adding and changing states and offices). It is company-wide, so it stays with Admins until the owner says otherwise.
+  manage_settings (adding and removing states and offices) is company-wide and stays with Admins. See the step 2 cleanup decisions below.
 - **Location filter.** Stays at state level, as in the mockup. A state with more than one office opens to choose one office, or the whole state.
 - **Auditing.** Changes to roles and role permissions are recorded in audit_log.
+
+### Decisions from the step 2 cleanup
+
+The owner's answers to the questions in pull request #3.
+
+- **Office details.** Project managers can edit their own offices' phone and address (permission `edit_office_details`, limited to their offices). Adding or removing states and offices, renaming them, and changing their time zone or state stay Admin-only (`manage_settings`). The database enforces this now; there is no screen for office details yet, for anyone. It arrives with settings in a later step.
+- **Audit log by office.** Project managers see audit entries for their own offices only: changes to people in their offices, to office membership in their offices, and to customers (and later jobs) in their offices. Company-wide entries such as roles and permissions are for company-scope roles. Admins see everything.
+- **Offices required.** Every person belongs to at least one office, including company-wide roles such as Accountant. Adding a person and editing a person both require it, and the database refuses to take the last office away from anyone who can sign in, or to switch on someone with no office, however the change is made. A switched-off person may be left with no office.
+- **Sign out everywhere.** A password reset signs the person out on every device: their current sessions end and they sign in again with the temporary password. Switching someone off does the same. The database does this when the profile changes, so it holds whichever screen or function made the change.
+
+### Decisions from step 3
+
+Rules set by the owner for customers, properties, organizations and contacts, until jobs arrive in step 4.
+
+- **Customers before jobs.** Until jobs exist, Sales sees the customers they created, Project managers see the customers in their offices, and Admins and Accountants see all. Visibility goes by the role's scope (company, state, office, own), so it is data, not role names. Step 4 adds "anyone who can see one of the customer's jobs" to the same rule. Properties follow their customer.
+- **New customers.** A customer needs only a name and a phone number. Email and a first property address are optional on the same form. A new customer belongs to an office the person is in; company-scope roles pick any office. The form warns when the phone number matches an existing customer, shows who it belongs to and offers to open that customer instead. The match uses the digits of the phone number only, so spacing and punctuation do not matter, and a leading 1 is ignored. The warning names the matching customer and their office even when the person cannot open that customer (for example, Sales and another rep's customer), so the same person is never entered twice; whether that is wanted is an open question in section 11.
+- **Partners.** Organizations and contacts are visible to all staff. Anyone can add a contact (the owner's rule). Changing an organization's type or parent (its place in the chain) needs the `manage_partner_structure` permission, which Project managers and Admins have. An organization cannot be its own parent, directly or through a loop. Assumed until the owner says otherwise (section 11): anyone can add an organization, choosing its type and parent as they add it, and anyone can edit the rest of an organization's details (phone, address, notes, whether it refers jobs).
+- **Editing customers.** Anyone who can see a customer can edit them, and a customer can only be moved to an office within the editor's scope. Company-scope roles can add customers in any office. Whether Accountants should be read-only on customers is an open question (section 11).
+- **Duplicate warning and archived customers.** An archived customer still triggers the warning, marked as archived, so nobody is entered twice; there is no way to open or restore them from the form yet.
+- **Latitude and longitude** stay empty until mapping arrives in Phase 5.
 
 ## 9. Commission and pay rules (Phase 3)
 
@@ -331,3 +351,8 @@ Carry these in pull requests when they become relevant. Do not resolve them by g
 - What happens when a rep has already been paid more than the final earned amount?
 - Default lead credit for Canvassing, Billboards, Facebook and Google, as proposed in section 7.
 - How many days in each stage count as late. Until the owner sets them, use 14 days and say so.
+- Duplicate warning across offices: when Sales enters a phone number that belongs to a customer they cannot see, the warning names that customer and their office. Should it, or should it only say that the number is already in use?
+- Adding organizations: anyone can add an organization and place it under an ownership group as they add it, so field staff can record a new franchise. Should placing a new organization in the chain also be limited to Project managers and Admins?
+- Editing customers: anyone who can see a customer can edit them, and company-wide roles can add customers in any office, Accountants included. Should Accountants be read-only on customers?
+- Audit entries by office go by the office a person is in now. When someone moves office, the entries about them move with them. Should they instead stay with the office where the change was made?
+- A phone number needs at least 7 digits to be saved. Should the floor be 10, a full US number?

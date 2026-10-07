@@ -90,6 +90,117 @@ export type AuditLogRow = StandardColumns & {
   changed_at: string
 }
 
+export type CustomersRow = StandardColumns & {
+  customer_type: 'person' | 'company'
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  phone: string
+  /** Digits only, kept by the database. */
+  phone_digits: string
+  phone_alt: string | null
+  email: string | null
+  preferred_contact: 'call' | 'text' | 'email' | null
+  billing_address_line1: string | null
+  billing_address_line2: string | null
+  billing_city: string | null
+  billing_state: string | null
+  billing_zip: string | null
+  office_id: string
+  notes: string | null
+  external_source: string | null
+  external_id: string | null
+  archived_at: string | null
+}
+
+export type PropertiesRow = StandardColumns & {
+  customer_id: string
+  address_line1: string
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  county: string | null
+  latitude: number | null
+  longitude: number | null
+  property_type: 'residential' | 'commercial' | 'multi_family' | null
+  notes: string | null
+  external_source: string | null
+  external_id: string | null
+  archived_at: string | null
+}
+
+export type OrganizationsRow = StandardColumns & {
+  name: string
+  org_type:
+    | 'servpro_group'
+    | 'servpro_franchise'
+    | 'restoration_company'
+    | 'insurance_carrier'
+    | 'mortgage_company'
+    | 'property_manager'
+    | 'supplier'
+    | 'subcontractor'
+    | 'vendor'
+    | 'other'
+  parent_organization_id: string | null
+  is_referral_partner: boolean
+  relationship_owner_id: string | null
+  phone: string | null
+  email: string | null
+  address_line1: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  notes: string | null
+  external_source: string | null
+  external_id: string | null
+  archived_at: string | null
+}
+
+export type ContactsRow = StandardColumns & {
+  organization_id: string | null
+  first_name: string | null
+  last_name: string | null
+  title: string | null
+  contact_role:
+    | 'owner'
+    | 'general_manager'
+    | 'mitigation_manager'
+    | 'project_manager'
+    | 'dispatcher'
+    | 'estimator'
+    | 'office_manager'
+    | 'adjuster'
+    | 'agent'
+    | 'other'
+    | null
+  phone: string | null
+  mobile: string | null
+  email: string | null
+  notes: string | null
+  external_source: string | null
+  external_id: string | null
+  archived_at: string | null
+}
+
+/** What customers_with_phone gives back: enough for the duplicate warning, nothing more. */
+export type PhoneMatchRow = {
+  /** Only when the caller may open the customer. */
+  customer_id: string | null
+  display_name: string
+  office_name: string
+  can_open: boolean
+  archived: boolean
+}
+
+export type SearchRow = {
+  kind: string
+  id: string
+  title: string
+  detail: string | null
+}
+
 export type Database = {
   __InternalSupabase: {
     PostgrestVersion: '12'
@@ -105,6 +216,10 @@ export type Database = {
       profile_offices: Table<ProfileOfficesRow>
       team_members: Table<TeamMembersRow>
       audit_log: Table<AuditLogRow>
+      customers: Table<CustomersRow, Omit<CustomersRow, 'phone_digits'>>
+      properties: Table<PropertiesRow>
+      organizations: Table<OrganizationsRow>
+      contacts: Table<ContactsRow>
     }
     Views: { [_ in never]: never }
     Functions: {
@@ -112,6 +227,31 @@ export type Database = {
       is_active_staff: { Args: Record<PropertyKey, never>; Returns: boolean }
       in_my_offices: { Args: { office: string }; Returns: boolean }
       can_manage_team: { Args: { team: string }; Returns: boolean }
+      my_scope: { Args: Record<PropertyKey, never>; Returns: RoleScope | null }
+      office_in_my_scope: { Args: { office: string }; Returns: boolean }
+      can_see_customer: { Args: { customer: string; office: string; creator: string | null }; Returns: boolean }
+      audit_entry_in_my_scope: { Args: { table_name: string; record_id: string; changes: Json }; Returns: boolean }
+      phone_key: { Args: { phone: string }; Returns: string }
+      customers_with_phone: { Args: { phone: string }; Returns: PhoneMatchRow[] }
+      add_customer: {
+        Args: {
+          customer_type: string
+          first_name: string | null
+          last_name: string | null
+          company_name: string | null
+          phone: string
+          email: string | null
+          office_id: string
+          property_address_line1?: string | null
+          property_address_line2?: string | null
+          property_city?: string | null
+          property_state?: string | null
+          property_zip?: string | null
+          property_type?: string | null
+        }
+        Returns: string
+      }
+      search_records: { Args: { query: string }; Returns: SearchRow[] }
       require_password_change: { Args: { person_id: string }; Returns: undefined }
       update_my_details: {
         Args: { first_name: string; last_name: string; phone: string }

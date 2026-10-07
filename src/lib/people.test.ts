@@ -19,8 +19,12 @@ const form: PersonForm = {
 }
 
 describe('saving a person', () => {
-  it('has no main office when the person is in no office', () => {
-    expect(personChangeFrom('p1', { ...form, primaryOfficeId: 'office-a' })).toEqual({
+  it('needs at least one office for anyone who can sign in', () => {
+    expect(personChangeFrom('p1', { ...form, primaryOfficeId: 'office-a' })).toEqual({ error: 'Pick at least one office.' })
+  })
+
+  it('lets a switched-off person be left with no office', () => {
+    expect(personChangeFrom('p1', { ...form, isActive: false, primaryOfficeId: 'office-a' })).toEqual({
       change: {
         personId: 'p1',
         firstName: 'Riley',
@@ -28,7 +32,7 @@ describe('saving a person', () => {
         roleId: 'role-sales',
         officeIds: [],
         primaryOfficeId: null,
-        isActive: true,
+        isActive: false,
       },
     })
   })
@@ -80,6 +84,8 @@ describe('who can manage people', () => {
     mustChangePassword: false,
     role: { id: 'r', key: 'anything', name: 'Anything', scope: 'company' },
     permissions: ['manage_users'],
+    officeIds: ['office-a'],
+    primaryOfficeId: 'office-a',
   }
 
   it('goes by the permission, not the role name', () => {

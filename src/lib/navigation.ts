@@ -25,8 +25,8 @@ export const mainNav: readonly ScreenLink[] = [
   { label: 'Boards', path: '/boards', arrives: 'Phase 1, step 4, with jobs and boards' },
   { label: 'Schedule', path: '/schedule', arrives: 'Phase 1, step 5, with appointments' },
   { label: 'Dispatch', path: '/dispatch', arrives: 'Phase 2, with emergency dispatch' },
-  { label: 'Customers', path: '/customers', arrives: 'Phase 1, step 3, with customers and properties' },
-  { label: 'Partners', path: '/partners', arrives: 'Phase 1, step 3, with organizations and contacts' },
+  { label: 'Customers', path: '/customers' },
+  { label: 'Partners', path: '/partners' },
   { label: 'Tasks', path: '/tasks', arrives: 'Phase 1, step 5, with tasks' },
   { label: 'Reports', path: '/reports', arrives: 'a later phase, once jobs and money are in' },
 ]
@@ -37,11 +37,10 @@ export const peopleScreen: ScreenLink = { label: 'People', path: '/people' }
 /** For everyone, under their name in the sidebar: their own name, phone and password. */
 export const myDetailsScreen: ScreenLink = { label: 'My details', path: '/me' }
 
-export const searchScreen: ScreenLink = {
-  label: 'Search',
-  path: '/search',
-  arrives: 'Phase 1, step 3, with customers and contacts',
-}
+export const searchScreen: ScreenLink = { label: 'Search', path: '/search' }
+
+export const customersScreen: ScreenLink = { label: 'Customers', path: '/customers' }
+export const partnersScreen: ScreenLink = { label: 'Partners', path: '/partners' }
 
 /** Every screen that is not built yet, for the placeholder routes. */
-export const comingLater: readonly ScreenLink[] = [newEmergency, newJob, ...mainNav.filter((link) => link.arrives), searchScreen]
+export const comingLater: readonly ScreenLink[] = [newEmergency, newJob, ...mainNav.filter((link) => link.arrives)]

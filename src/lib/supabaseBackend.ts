@@ -8,7 +8,9 @@ import {
   type User,
 } from '@supabase/supabase-js'
 import { FriendlyError, type Backend, type SessionUser } from './backend'
-import type { Database, RolesRow } from './database.types'
+import type { Customer, Property } from './customers'
+import type { ContactsRow, CustomersRow, Database, OrganizationsRow, PropertiesRow, RolesRow } from './database.types'
+import type { Contact, Organization, SearchKind, SearchResult } from './partners'
 import type { NewPerson, Role } from './people'
 
 export interface SupabaseSettings {
@@ -29,6 +31,121 @@ function toSessionUser(user: User | null | undefined): SessionUser | null {
 
 function toRole(row: Pick<RolesRow, 'id' | 'key' | 'name' | 'scope'>): Role {
   return { id: row.id, key: row.key, name: row.name, scope: row.scope }
+}
+
+const CUSTOMER_COLUMNS =
+  'id, customer_type, first_name, last_name, company_name, phone, phone_alt, email, preferred_contact, office_id, notes, created_at'
+
+type CustomerColumns = Pick<
+  CustomersRow,
+  | 'id'
+  | 'customer_type'
+  | 'first_name'
+  | 'last_name'
+  | 'company_name'
+  | 'phone'
+  | 'phone_alt'
+  | 'email'
+  | 'preferred_contact'
+  | 'office_id'
+  | 'notes'
+  | 'created_at'
+>
+
+function toCustomer(row: CustomerColumns): Customer {
+  return {
+    id: row.id,
+    customerType: row.customer_type,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    companyName: row.company_name,
+    phone: row.phone,
+    phoneAlt: row.phone_alt,
+    email: row.email,
+    preferredContact: row.preferred_contact,
+    officeId: row.office_id,
+    notes: row.notes,
+    createdAt: row.created_at,
+  }
+}
+
+const PROPERTY_COLUMNS = 'id, customer_id, address_line1, address_line2, city, state, zip, property_type, notes'
+
+type PropertyColumns = Pick<
+  PropertiesRow,
+  'id' | 'customer_id' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'property_type' | 'notes'
+>
+
+function toProperty(row: PropertyColumns): Property {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    addressLine1: row.address_line1,
+    addressLine2: row.address_line2,
+    city: row.city,
+    state: row.state,
+    zip: row.zip,
+    propertyType: row.property_type,
+    notes: row.notes,
+  }
+}
+
+const ORGANIZATION_COLUMNS =
+  'id, name, org_type, parent_organization_id, is_referral_partner, phone, email, address_line1, city, state, zip, notes'
+
+type OrganizationColumns = Pick<
+  OrganizationsRow,
+  | 'id'
+  | 'name'
+  | 'org_type'
+  | 'parent_organization_id'
+  | 'is_referral_partner'
+  | 'phone'
+  | 'email'
+  | 'address_line1'
+  | 'city'
+  | 'state'
+  | 'zip'
+  | 'notes'
+>
+
+function toOrganization(row: OrganizationColumns): Organization {
+  return {
+    id: row.id,
+    name: row.name,
+    orgType: row.org_type,
+    parentOrganizationId: row.parent_organization_id,
+    isReferralPartner: row.is_referral_partner,
+    phone: row.phone,
+    email: row.email,
+    addressLine1: row.address_line1,
+    city: row.city,
+    state: row.state,
+    zip: row.zip,
+    notes: row.notes,
+  }
+}
+
+const CONTACT_COLUMNS = 'id, organization_id, first_name, last_name, title, contact_role, phone, mobile, email, notes'
+
+type ContactColumns = Pick<
+  ContactsRow,
+  'id' | 'organization_id' | 'first_name' | 'last_name' | 'title' | 'contact_role' | 'phone' | 'mobile' | 'email' | 'notes'
+>
+
+function toContact(row: ContactColumns): Contact {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    title: row.title,
+    contactRole: row.contact_role,
+    phone: row.phone,
+    mobile: row.mobile,
+    email: row.email,
+    notes: row.notes,
+  }
 }
 
 const COULD_NOT_REACH = 'Could not reach the server. Check the connection and try again.'
@@ -114,7 +231,7 @@ export function createSupabaseBackend(settings: SupabaseSettings): Backend {
     async loadSignedInPerson(userId) {
       const { data: profile, error } = await client
         .from('profiles')
-        .select('id, first_name, last_name, email, phone, is_active, must_change_password, role_id')
+        .select('id, first_name, last_name, email, phone, is_active, must_change_password, role_id, primary_office_id')
         .eq('id', userId)
         .maybeSingle()
       fail(error)
@@ -133,15 +250,19 @@ export function createSupabaseBackend(settings: SupabaseSettings): Backend {
           mustChangePassword: profile.must_change_password,
           role: { id: profile.role_id, key: '', name: '', scope: 'own' },
           permissions: [],
+          officeIds: [],
+          primaryOfficeId: profile.primary_office_id,
         }
       }
 
-      const [roleResult, permissionResult] = await Promise.all([
+      const [roleResult, permissionResult, officeResult] = await Promise.all([
         client.from('roles').select('id, key, name, scope').eq('id', profile.role_id).single(),
         client.from('role_permissions').select('permission_key').eq('role_id', profile.role_id),
+        client.from('profile_offices').select('office_id').eq('profile_id', profile.id),
       ])
       fail(roleResult.error)
       fail(permissionResult.error)
+      fail(officeResult.error)
 
       return {
         id: profile.id,
@@ -153,6 +274,8 @@ export function createSupabaseBackend(settings: SupabaseSettings): Backend {
         mustChangePassword: false,
         role: toRole(roleResult.data as RolesRow),
         permissions: (permissionResult.data ?? []).map((row) => row.permission_key),
+        officeIds: (officeResult.data ?? []).map((row) => row.office_id),
+        primaryOfficeId: profile.primary_office_id,
       }
     },
 
@@ -268,6 +391,226 @@ export function createSupabaseBackend(settings: SupabaseSettings): Backend {
         phone: details.phone,
       })
       fail(error)
+    },
+
+    // ----- Customers and properties -----
+
+    async loadCustomers() {
+      const { data, error } = await client
+        .from('customers')
+        .select(CUSTOMER_COLUMNS)
+        .is('archived_at', null)
+        .order('company_name', { nullsFirst: false })
+        .order('first_name', { nullsFirst: false })
+        .order('last_name', { nullsFirst: false })
+      fail(error)
+      return ((data ?? []) as CustomerColumns[]).map(toCustomer)
+    },
+
+    async loadCustomer(customerId) {
+      const { data, error } = await client
+        .from('customers')
+        .select(CUSTOMER_COLUMNS)
+        .eq('id', customerId)
+        .is('archived_at', null)
+        .maybeSingle()
+      fail(error)
+      return data ? toCustomer(data as CustomerColumns) : null
+    },
+
+    async loadProperties(customerId) {
+      let query = client.from('properties').select(PROPERTY_COLUMNS).is('archived_at', null).order('created_at')
+      if (customerId) query = query.eq('customer_id', customerId)
+      const { data, error } = await query
+      fail(error)
+      return ((data ?? []) as PropertyColumns[]).map(toProperty)
+    },
+
+    async findCustomersByPhone(phone) {
+      const { data, error } = await client.rpc('customers_with_phone', { phone })
+      fail(error)
+      return (data ?? []).map((row) => ({
+        customerId: row.customer_id,
+        displayName: row.display_name,
+        officeName: row.office_name,
+        canOpen: row.can_open,
+        archived: row.archived,
+      }))
+    },
+
+    async addCustomer(customer) {
+      const { data, error } = await client.rpc('add_customer', {
+        customer_type: customer.customerType,
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        company_name: customer.companyName,
+        phone: customer.phone,
+        email: customer.email,
+        office_id: customer.officeId,
+        property_address_line1: customer.property?.addressLine1 ?? null,
+        property_address_line2: customer.property?.addressLine2 ?? null,
+        property_city: customer.property?.city ?? null,
+        property_state: customer.property?.state ?? null,
+        property_zip: customer.property?.zip ?? null,
+        property_type: customer.property?.propertyType ?? null,
+      })
+      fail(error)
+      if (typeof data !== 'string') throw new Error('The server did not send back the new customer.')
+      return { customerId: data }
+    },
+
+    async updateCustomer(change) {
+      const { data, error } = await client
+        .from('customers')
+        .update({
+          customer_type: change.customerType,
+          first_name: change.firstName,
+          last_name: change.lastName,
+          company_name: change.companyName,
+          phone: change.phone,
+          phone_alt: change.phoneAlt,
+          email: change.email,
+          preferred_contact: change.preferredContact,
+          notes: change.notes,
+        })
+        .eq('id', change.customerId)
+        .select('id')
+      fail(error)
+      // The access rules hide rows silently, so an update that reached no row is a refusal.
+      if (!data || data.length === 0) throw new FriendlyError('You do not have permission to change this customer.')
+    },
+
+    async addProperty(customerId, property) {
+      const { data, error } = await client
+        .from('properties')
+        .insert({
+          customer_id: customerId,
+          address_line1: property.addressLine1,
+          address_line2: property.addressLine2,
+          city: property.city,
+          state: property.state,
+          zip: property.zip,
+          property_type: property.propertyType,
+        })
+        .select('id')
+        .single()
+      fail(error)
+      return { propertyId: (data as { id: string }).id }
+    },
+
+    // ----- Organizations and contacts -----
+
+    async loadOrganizations() {
+      const { data, error } = await client.from('organizations').select(ORGANIZATION_COLUMNS).is('archived_at', null).order('name')
+      fail(error)
+      return ((data ?? []) as OrganizationColumns[]).map(toOrganization)
+    },
+
+    async loadContacts() {
+      const { data, error } = await client
+        .from('contacts')
+        .select(CONTACT_COLUMNS)
+        .is('archived_at', null)
+        .order('first_name', { nullsFirst: false })
+        .order('last_name', { nullsFirst: false })
+      fail(error)
+      return ((data ?? []) as ContactColumns[]).map(toContact)
+    },
+
+    async addOrganization(organization) {
+      const { data, error } = await client
+        .from('organizations')
+        .insert({
+          name: organization.name,
+          org_type: organization.orgType,
+          parent_organization_id: organization.parentOrganizationId,
+          is_referral_partner: organization.isReferralPartner,
+          phone: organization.phone,
+          email: organization.email,
+          address_line1: organization.addressLine1,
+          city: organization.city,
+          state: organization.state,
+          zip: organization.zip,
+          notes: organization.notes,
+        })
+        .select('id')
+        .single()
+      fail(error)
+      return { organizationId: (data as { id: string }).id }
+    },
+
+    async updateOrganization(change) {
+      const { data, error } = await client
+        .from('organizations')
+        .update({
+          name: change.name,
+          org_type: change.orgType,
+          parent_organization_id: change.parentOrganizationId,
+          is_referral_partner: change.isReferralPartner,
+          phone: change.phone,
+          email: change.email,
+          address_line1: change.addressLine1,
+          city: change.city,
+          state: change.state,
+          zip: change.zip,
+          notes: change.notes,
+        })
+        .eq('id', change.organizationId)
+        .select('id')
+      fail(error)
+      if (!data || data.length === 0) throw new FriendlyError('That organization was not found.')
+    },
+
+    async addContact(contact) {
+      const { data, error } = await client
+        .from('contacts')
+        .insert({
+          organization_id: contact.organizationId,
+          first_name: contact.firstName,
+          last_name: contact.lastName,
+          title: contact.title,
+          contact_role: contact.contactRole,
+          phone: contact.phone,
+          mobile: contact.mobile,
+          email: contact.email,
+          notes: contact.notes,
+        })
+        .select('id')
+        .single()
+      fail(error)
+      return { contactId: (data as { id: string }).id }
+    },
+
+    async updateContact(change) {
+      const { data, error } = await client
+        .from('contacts')
+        .update({
+          organization_id: change.organizationId,
+          first_name: change.firstName,
+          last_name: change.lastName,
+          title: change.title,
+          contact_role: change.contactRole,
+          phone: change.phone,
+          mobile: change.mobile,
+          email: change.email,
+          notes: change.notes,
+        })
+        .eq('id', change.contactId)
+        .select('id')
+      fail(error)
+      if (!data || data.length === 0) throw new FriendlyError('That contact was not found.')
+    },
+
+    // ----- Search -----
+
+    async search(query) {
+      const { data, error } = await client.rpc('search_records', { query })
+      fail(error)
+      const kinds: SearchKind[] = ['customer', 'organization', 'contact']
+      return (data ?? []).flatMap((row): SearchResult[] => {
+        const kind = kinds.find((candidate) => candidate === row.kind)
+        return kind ? [{ kind, id: row.id, title: row.title, detail: row.detail }] : []
+      })
     },
   }
 }

@@ -20,6 +20,14 @@ create table auth.users (
   created_at timestamptz not null default now()
 );
 
+-- One row per device a person is signed in on. Ending a session signs that
+-- device out at its next request.
+create table auth.sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
 -- Same definition as Supabase's: the signed-in user's id from the request.
 create function auth.uid()
 returns uuid
